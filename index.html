@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dalarna Digital Twin - Monitoring & Simulation</title>
+    
+    <!-- MapLibre GL -->
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+
+    <style>
+        * { box-sizing: border-box; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Volet latéral de commande */
+        .dashboard-panel {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 400px;
+            max-height: calc(100vh - 30px);
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 16px;
+            z-index: 1000;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        /* Commutateur de Mode (Toggle) */
+        .mode-switch {
+            display: flex;
+            background: #e2e8f0;
+            border-radius: 8px;
+            padding: 3px;
+            gap: 3px;
+        }
+        .mode-btn {
+            flex: 1;
+            padding: 8px 4px;
+            border: none;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            background: transparent;
+            color: #64748b;
+        }
+        .mode-btn.active {
+            background: #ffffff;
+            color: #0f172a;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Cartes des capteurs */
+        .telemetry-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .telemetry-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }
+        .telemetry-card .label {
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .telemetry-card .val {
+            font-size: 18px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-top: 4px;
+        }
+
+        /* Module de Risque / Décision */
+        .risk-banner {
+            padding: 10px 12px;
+            border-radius: 8px;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            transition: background 0.3s ease;
+        }
+        .risk-details {
+            font-size: 11px;
+            color: #475569;
+            background: #f1f5f9;
+            border-radius: 6px;
+            padding: 8px;
+            line-height: 1.4;
+        }
+
+        /* Contrôles du Simulateur */
+        .sim-controls {
+            display: none;
+            background: #fff7ed;
+            border: 1px solid #fed7aa;
+            border-radius: 8px;
+            padding: 12px;
+            gap: 10px;
+            flex-direction: column;
+        }
+        .sim-controls.visible {
+            display: flex;
+        }
+
+        .slider-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 600;
+            color: #9a3412;
+            margin-bottom: 3px;
+        }
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        .btn-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 6px;
+            margin-top: 4px;
+        }
+        .btn-sim {
+            padding: 6px 4px;
+            font-size: 10px;
+            font-weight: 600;
+            border: 1px solid #fdba74;
+            background: #ffffff;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #7c2d12;
+            transition: background 0.15s ease;
+        }
+        .btn-sim:hover {
+            background: #ffedd5;
+        }
+
+        /* Cadre Grafana */
+        .grafana-container {
+            width: 100%;
+            height: 180px;
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            background: #181b1f;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div class="dashboard-panel">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h2 style="font-size: 15px; margin: 0; color: #0f172a;">🏛️ Dalarna Digital Twin</h2>
+            <span id="live-indicator" style="font-size: 10px; font-weight: 700; color: #16a34a;">● EN DIRECT</span>
+        </div>
+
+        <!-- 1. COMMUTATEUR DE MODE -->
+        <div class="mode-switch">
+            <button id="btn-mode-live" class="mode-btn active" onclick="setMode('LIVE')">🟢 Données Réelles</button>
+            <button id="btn-mode-sim" class="mode-btn" onclick="setMode('SIM')">🔮 Simulateur (What-If)</button>
+        </div>
+
+        <!-- 2. RELEVÉS DE TÉLÉMÉTRIE -->
+        <div class="telemetry-grid">
+            <div class="telemetry-card">
+                <div class="label">SMHI Borlänge (Air)</div>
+                <div id="air-temp-display" class="val">-- °C</div>
+            </div>
+            <div class="telemetry-card">
+                <div class="label">Trafikverket E16 (Sol)</div>
+                <div id="road-temp-display" class="val">-- °C</div>
+            </div>
+        </div>
+
+        <!-- 3. ÉTAT DU RISQUE & DÉCISION -->
+        <div id="risk-banner" class="risk-banner" style="background-color: #64748b;">
+            Évaluation en cours...
+        </div>
+        <div id="risk-details" class="risk-details"></div>
+
+        <!-- 4. VOLET DE CONTRÔLE DU SIMULATEUR -->
+        <div id="sim-panel" class="sim-controls">
+            <span style="font-size: 11px; font-weight: 700; color: #9a3412;">🛠️ Scénarios de Crise & What-If</span>
+            
+            <div>
+                <div class="slider-row">
+                    <span>Température Chaussée Simulée :</span>
+                    <span id="slider-val-road">0.0 °C</span>
+                </div>
+                <input type="range" id="sim-road-slider" min="-15" max="25" value="0" step="0.5" oninput="applySimSlider()">
+            </div>
+
+            <div class="btn-row">
+                <button class="btn-sim" onclick="loadScenario(-2.0, 2.0)">⚠️ Verglas Noir (-2°C / +2°C)</button>
+                <button class="btn-sim" onclick="loadScenario(-8.0, -6.0)">❄️ Nuit Polaire (-8°C / -6°C)</button>
+                <button class="btn-sim" onclick="loadScenario(-1.0, 0.5)">🌧️ Pluie Verglaçante (-1°C / +0.5°C)</button>
+                <button class="btn-sim" onclick="resetSim()">🔄 Réinitialiser</button>
+            </div>
+        </div>
+
+        <!-- 5. GRAPHIQUE HISTORIQUE GRAFANA -->
+        <div class="grafana-container">
+			<iframe 
+				src="http://localhost:3000/d-solo/adb22nf/smhi-and-trafikverket-data-extended?orgId=1&from=now-3h&to=now&timezone=browser&panelId=1" width="450" height="200" frameborder="0">
+			</iframe>
+        </div>
+    </div>
+
+    <script>
+        let currentMode = 'LIVE';
+        let liveAirTemp = 19.5;
+        let liveRoadTemp = 18.3;
+
+        // Initialisation Carte MapLibre
+        const map = new maplibregl.Map({
+            container: 'map',
+            style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
+            center: [15.4500, 60.4650],
+            zoom: 10.5
+        });
+
+        // Popups dynamiques avec affichage du nom et de la température
+        const airPopup = new maplibregl.Popup({ offset: 25, closeButton: false });
+        const roadPopup = new maplibregl.Popup({ offset: 25, closeButton: false });
+
+        function updateAirPopup(temp, isSimulated = false) {
+            const tag = isSimulated ? ' (Simulé)' : '';
+            airPopup.setHTML(`
+                <div style="font-size: 11px; line-height: 1.4;">
+                    <b style="color: #0284c7;">Station SMHI</b><br>
+                    <span>Borlänge Flygplats</span><br>
+                    <b>Temp. Air :</b> <span style="font-size: 12px; font-weight: 700;">${temp} °C${tag}</span>
+                </div>
+            `);
+        }
+
+        function updateRoadPopup(temp, isSimulated = false) {
+            const tag = isSimulated ? ' (Simulé)' : '';
+            roadPopup.setHTML(`
+                <div style="font-size: 11px; line-height: 1.4;">
+                    <b style="color: #ea580c;">Station Trafikverket (VViS)</b><br>
+                    <span>Axe E16 Mellsta</span><br>
+                    <b>Temp. Sol :</b> <span style="font-size: 12px; font-weight: 700;">${temp} °C${tag}</span>
+                </div>
+            `);
+        }
+
+        // Marqueurs géographiques
+        const airMarker = new maplibregl.Marker({ color: '#0284c7' })
+            .setLngLat([15.5133, 60.4219])
+            .setPopup(airPopup)
+            .addTo(map);
+
+        const roadMarker = new maplibregl.Marker({ color: '#ea580c' })
+            .setLngLat([15.3850, 60.5050])
+            .setPopup(roadPopup)
+            .addTo(map);
+
+        updateAirPopup(liveAirTemp, false);
+        updateRoadPopup(liveRoadTemp, false);
+
+        // --- GESTION DU COMMUTATEUR DE MODE ---
+        function setMode(mode) {
+            currentMode = mode;
+            const btnLive = document.getElementById('btn-mode-live');
+            const btnSim = document.getElementById('btn-mode-sim');
+            const simPanel = document.getElementById('sim-panel');
+            const indicator = document.getElementById('live-indicator');
+
+            if (mode === 'LIVE') {
+                btnLive.classList.add('active');
+                btnSim.classList.remove('active');
+                simPanel.classList.remove('visible');
+                indicator.innerHTML = "● EN DIRECT";
+                indicator.style.color = "#16a34a";
+                fetchLiveTelemetry();
+            } else {
+                btnSim.classList.add('active');
+                btnLive.classList.remove('active');
+                simPanel.classList.add('visible');
+                indicator.innerHTML = "⚡ MODE SIMULATEUR ACTIF";
+                indicator.style.color = "#ea580c";
+                
+                document.getElementById('sim-road-slider').value = liveRoadTemp;
+                document.getElementById('slider-val-road').innerText = `${liveRoadTemp} °C`;
+                applySimSlider();
+            }
+        }
+
+        // --- 1. LOGIQUE TEMPS RÉEL (LIVE) ---
+        async function fetchLiveTelemetry() {
+            if (currentMode !== 'LIVE') return;
+
+            try {
+                const [resAir, resRoad, resRisk] = await Promise.all([
+                    fetch('/api/station').then(r => r.json()),
+                    fetch('/api/road-weather').then(r => r.json()),
+                    fetch('/api/simulation/predict').then(r => r.json())
+                ]);
+
+                if (resAir && resAir.temperature) {
+                    liveAirTemp = resAir.temperature.value;
+                    document.getElementById('air-temp-display').innerText = `${liveAirTemp} °C`;
+                    updateAirPopup(liveAirTemp, false);
+                }
+
+                if (resRoad && resRoad.temperature) {
+                    liveRoadTemp = resRoad.temperature.value;
+                    document.getElementById('road-temp-display').innerText = `${liveRoadTemp} °C`;
+                    updateRoadPopup(liveRoadTemp, false);
+                }
+
+                renderRiskBanner(resRisk);
+            } catch (err) {
+                console.warn("Erreur fetch live:", err);
+            }
+        }
+
+        // --- 2. LOGIQUE DU SIMULATEUR (WHAT-IF) ---
+        async function applySimSlider() {
+            if (currentMode !== 'SIM') return;
+
+            const targetRoad = parseFloat(document.getElementById('sim-road-slider').value);
+            document.getElementById('slider-val-road').innerText = `${targetRoad.toFixed(1)} °C`;
+
+            document.getElementById('road-temp-display').innerText = `${targetRoad.toFixed(1)} °C (Simulé)`;
+            updateRoadPopup(targetRoad.toFixed(1), true);
+            updateAirPopup(liveAirTemp, false);
+
+            try {
+                const res = await fetch('/api/simulation/what-if', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        simulated_road_temp: targetRoad,
+                        simulated_air_temp: liveAirTemp 
+                    })
+                });
+                const data = await res.json();
+                renderRiskBanner(data);
+            } catch(e) {
+                console.error("Erreur sim:", e);
+            }
+        }
+
+        async function loadScenario(targetRoadTemp, targetAirTemp) {
+            document.getElementById('sim-road-slider').value = targetRoadTemp;
+            document.getElementById('slider-val-road').innerText = `${targetRoadTemp.toFixed(1)} °C`;
+
+            document.getElementById('road-temp-display').innerText = `${targetRoadTemp.toFixed(1)} °C (Scénario)`;
+            document.getElementById('air-temp-display').innerText = `${targetAirTemp.toFixed(1)} °C (Scénario)`;
+
+            updateRoadPopup(targetRoadTemp.toFixed(1), true);
+            updateAirPopup(targetAirTemp.toFixed(1), true);
+
+            try {
+                const res = await fetch('/api/simulation/what-if', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        simulated_road_temp: targetRoadTemp, 
+                        simulated_air_temp: targetAirTemp 
+                    })
+                });
+                const data = await res.json();
+                renderRiskBanner(data);
+            } catch(e) {
+                console.error("Erreur scenario:", e);
+            }
+        }
+
+        function resetSim() {
+            document.getElementById('sim-road-slider').value = liveRoadTemp;
+            document.getElementById('slider-val-road').innerText = `${liveRoadTemp} °C`;
+            document.getElementById('air-temp-display').innerText = `${liveAirTemp} °C`;
+            document.getElementById('road-temp-display').innerText = `${liveRoadTemp} °C`;
+            updateAirPopup(liveAirTemp, false);
+            updateRoadPopup(liveRoadTemp, false);
+            applySimSlider();
+        }
+
+        // --- AFFICHAGE DU RISQUE ---
+        function renderRiskBanner(data) {
+            const banner = document.getElementById('risk-banner');
+            const details = document.getElementById('risk-details');
+
+            banner.style.backgroundColor = data.color || '#64748b';
+            banner.innerHTML = data.label || 'État stable';
+
+            details.innerHTML = `
+                • <b>Tendance (+1h) :</b> ${data.predicted_road_temp_1h ?? '--'} °C (Refroidissement : ${data.cooling_rate_per_hour ?? 0} °C/h)<br>
+                • <b>Action Jumeau Numérique :</b> ${data.action || 'Surveillance normale.'}
+            `;
+        }
+
+        // Rafraîchissement automatique
+        setInterval(fetchLiveTelemetry, 15000);
+        fetchLiveTelemetry();
+    </script>
+</body>
+</html>

@@ -1,0 +1,79 @@
+services:
+  mongo:
+    image: mongo:4.4
+    #container_name: dt-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - twin-net
+
+  orion:
+    image: fiware/orion-ld:latest
+    #container_name: dt-orion-ld
+    ports:
+      - "1026:1026"
+    depends_on:
+      - mongo
+    command: -dbhost mongo -logLevel DEBUG
+    networks:
+      - twin-net
+
+  timescaledb:
+    image: timescale/timescaledb-ha:pg15-latest
+    #container_name: dt-timescaledb
+    environment:
+      - POSTGRES_PASSWORD=DalarnaTwin2026!
+      - POSTGRES_DB=dalarna_dt
+    ports:
+      - "5432:5432"
+    volumes:
+      - timescale_data:/var/lib/postgresql/data
+    networks:
+      - twin-net
+
+  # --- NOUVEAU SERVICE: WORKER D'INGESTION AUTONOME ---
+  ingestor:
+    build: .
+    #container_name: dt-ingestor
+    restart: always # Redémarre automatiquement si Docker ou la machine reboot
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app    # <-- Indispensable pour que les modifs de index.html soient visibles en direct
+    depends_on:
+      - orion
+      - timescaledb
+    networks:
+      - twin-net
+
+  # --- NOUVEAU SERVICE: DASHBOARD & ANALYTICS ---
+  grafana:
+    image: grafana/grafana:latest
+    #container_name: dt-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=DalarnaTwin2026!
+      # --- AUTORISER L'INTÉGRATION ET LE RENDU EN IFRAME ---
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+      - GF_SECURITY_ALLOW_EMBEDDING=true
+      - GF_SECURITY_COOKIE_SAMESITE=disabled
+      - GF_PANELS_DISABLE_SANITIZE_HTML=true
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - timescaledb
+    networks:
+      - twin-net
+      
+networks:
+  twin-net:
+    driver: bridge
+
+volumes:
+  mongo_data:
+  timescale_data:
+  grafana_data:   # <--- Ajouter ce volume persistant
