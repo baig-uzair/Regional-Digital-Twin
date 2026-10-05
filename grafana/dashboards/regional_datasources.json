@@ -1,0 +1,83 @@
+{
+  "title": "Dalarna DT — Nouvelles sources nationales",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "panels": [
+    {
+      "id": 1,
+      "title": "SCB — Indicateurs (dernières valeurs)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT dataset_id, feature_id, attributes, fetched_at FROM regional_datasources WHERE source_id = 'SCB' ORDER BY fetched_at DESC LIMIT 200",
+          "rawQuery": true
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Skogsstyrelsen — Statistiques forêt (AOI)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT dataset_id, attributes, observed_at, fetched_at FROM regional_datasources WHERE source_id = 'Skogsstyrelsen' ORDER BY fetched_at DESC LIMIT 50",
+          "rawQuery": true
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "SGU — Eaux souterraines (géométries, ST_AsText)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT dataset_id, feature_id, ST_AsText(geom) AS geom_wkt, attributes FROM regional_datasources WHERE source_id = 'SGU' ORDER BY fetched_at DESC LIMIT 200",
+          "rawQuery": true
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Lantmäteriet — Géodonnées (géométries, ST_AsText)",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT dataset_id, feature_id, ST_AsText(geom) AS geom_wkt, attributes FROM regional_datasources WHERE source_id = 'Lantmateriet' ORDER BY fetched_at DESC LIMIT 200",
+          "rawQuery": true
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Enregistrements par source (observabilité)",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 16 },
+      "datasource": { "type": "postgres", "uid": "${DS_TIMESCALEDB}" },
+      "targets": [
+        {
+          "refId": "A",
+          "format": "table",
+          "rawSql": "SELECT source_id, dataset_id, COUNT(*) AS records, MAX(fetched_at) AS last_fetch FROM regional_datasources GROUP BY source_id, dataset_id ORDER BY source_id",
+          "rawQuery": true
+        }
+      ]
+    }
+  ]
+}

@@ -2,9 +2,17 @@ import requests
 import psycopg2
 from datetime import datetime, timezone
 import json
+import logging
 import time
 import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
+
+import datasource_store
+from connector_runner import run_connector
+from connectors import lantmateriet, scb, skogsstyrelsen, sgu
+from connectors.common import DALARNA_BBOX
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 
 # --- CONFIGURATION RÉSEAU DOCKER ---
 DB_HOST = "timescaledb"
@@ -156,8 +164,64 @@ class ProxyCORSRequestHandler(SimpleHTTPRequestHandler):
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(json.dumps(res).encode())
+
+        # 4. Nouvelles sources nationales (Lantmäteriet, SCB, Skogsstyrelsen, SGU)
+        elif self.path.startswith('/api/datasources'):
+            self.serve_datasources()
         else:
             super().do_GET()
+
+    def serve_datasources(self):
+        from urllib.parse import urlparse, parse_qs
+        query = parse_qs(urlparse(self.path).query)
+        source_filter = (query.get('source', [None])[0] or '').strip()
+
+        geojson = {"type": "FeatureCollection", "features": []}
+        try:
+            conn = psycopg2.connect(
+                host=DB_HOST, port=DB_PORT, database=DB_NAME, user=DB_USER, password=DB_PASS, connect_timeout=3
+            )
+            cur = conn.cursor()
+            base_query = """
+                SELECT DISTINCT ON (source_id, dataset_id, feature_id)
+                    source_id, dataset_id, feature_id, observed_at,
+                    ST_AsGeoJSON(geom) AS geom_json, attributes, fetched_at, source_url, license
+                FROM regional_datasources
+                WHERE geom IS NOT NULL
+            """
+            params = []
+            if source_filter:
+                base_query += " AND source_id = %s"
+                params.append(source_filter)
+            base_query += " ORDER BY source_id, dataset_id, feature_id, fetched_at DESC LIMIT 2000;"
+
+            cur.execute(base_query, params)
+            for source_id, dataset_id, feature_id, observed_at, geom_json, attributes, fetched_at, source_url, license_ in cur.fetchall():
+                if not geom_json:
+                    continue
+                geojson["features"].append({
+                    "type": "Feature",
+                    "geometry": json.loads(geom_json),
+                    "properties": {
+                        "source_id": source_id,
+                        "dataset_id": dataset_id,
+                        "feature_id": feature_id,
+                        "observed_at": observed_at.isoformat() if observed_at else None,
+                        "attributes": attributes,
+                        "fetched_at": fetched_at.isoformat() if fetched_at else None,
+                        "source_url": source_url,
+                        "license": license_,
+                    }
+                })
+            cur.close()
+            conn.close()
+        except Exception as e:
+            print(f"[API Datasources Error] {e}")
+
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(geojson).encode())
 
     def do_POST(self):
         # Simulation Dynamique What-If avec pilotage direct absolu
@@ -244,9 +308,45 @@ def run_ingestor():
         print(f"[{current_time}] SMHI Air: {air_temp}°C | Route E16: {road_temp}°C (Data Lake OK)")
         time.sleep(30)
 
+# --- SOURCES NATIONALES SUPPLÉMENTAIRES (Lantmäteriet, SCB, Skogsstyrelsen, SGU) ---
+# Mises à jour peu fréquentes (données périodiques, pas de la télémétrie temps réel) :
+# chaque connecteur tourne sur son propre intervalle en secondes.
+NEW_SOURCE_CONNECTORS = [
+    {"name": "SGU", "fetch_fn": sgu.fetch_records, "kwargs": {"bbox": DALARNA_BBOX}, "interval_seconds": 6 * 3600},
+    {"name": "SCB", "fetch_fn": scb.fetch_records, "kwargs": {}, "interval_seconds": 24 * 3600},
+    {"name": "Skogsstyrelsen", "fetch_fn": skogsstyrelsen.fetch_records, "kwargs": {}, "interval_seconds": 24 * 3600},
+    {"name": "Lantmateriet", "fetch_fn": lantmateriet.fetch_records, "kwargs": {"bbox": DALARNA_BBOX}, "interval_seconds": 24 * 3600},
+]
+
+def run_new_source_connector_loop(spec):
+    name = spec["name"]
+    while True:
+        result = run_connector(name, spec["fetch_fn"], **spec["kwargs"])
+        if result.status == "ok" and result.records:
+            try:
+                datasource_store.upsert_records(result.records)
+            except Exception as e:
+                print(f"[{name}] SQL Error storing {len(result.records)} records: {e}")
+        time.sleep(spec["interval_seconds"])
+
+def run_new_source_connectors():
+    try:
+        datasource_store.ensure_schema()
+        print("[regional_datasources] Schema ready.")
+    except Exception as e:
+        print(f"[regional_datasources] Schema init failed, will retry per-connector: {e}")
+
+    for spec in NEW_SOURCE_CONNECTORS:
+        thread = threading.Thread(target=run_new_source_connector_loop, args=(spec,), daemon=True)
+        thread.start()
+
 # Lancement de la boucle d'ingestion en tâche de fond
 t = threading.Thread(target=run_ingestor, daemon=True)
 t.start()
+
+# Lancement des 4 nouveaux connecteurs nationaux (Lantmäteriet/SCB/Skogsstyrelsen/SGU),
+# chacun dans son propre thread avec son propre intervalle
+run_new_source_connectors()
 if __name__ == "__main__":
     run_web_server()
     
