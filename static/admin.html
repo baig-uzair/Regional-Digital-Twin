@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Control — Dalarna Digital Twin</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+  <div class="admin-top">
+    <h1>Dalarna Digital Twin · Admin Control</h1>
+    <div class="links">
+      <a href="/" target="_blank" rel="noopener">View Live Dashboard ↗</a>
+      <a id="grafana-link" href="#" target="_blank" rel="noopener">View in Grafana ↗</a>
+      <span class="muted" id="whoami"></span>
+      <button class="btn small" id="logout">Log out</button>
+    </div>
+  </div>
+  <div id="globalbar" role="toolbar" aria-label="Global actions"></div>
+  <div class="admin-layout">
+    <section>
+      <div class="tabs" id="tabs" role="tablist"></div>
+      <div id="tab" role="tabpanel"></div>
+    </section>
+    <aside class="panel preview-panel" aria-label="Live preview">
+      <div class="ph"><div><b>Live Preview</b><div class="small muted">The real Main Interface, showing your unsaved changes</div></div></div>
+      <iframe id="preview" src="/?preview=1" title="Main Interface preview"></iframe>
+    </aside>
+  </div>
+  <script type="module" src="/js/admin.js"></script>
+</body>
+</html>

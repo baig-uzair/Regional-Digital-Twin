@@ -17,7 +17,7 @@ import os
 
 import requests
 
-from .common import SCB_REGION_CODE, ConnectorError, NormalizedRecord
+from .common import logger, SCB_REGION_CODE, ConnectorError, NormalizedRecord
 
 SOURCE_ID = "SCB"
 BASE_URL = "https://api.scb.se/OV0104/v2beta/api/v2"
@@ -62,9 +62,11 @@ def _find_region_variable(metadata: dict) -> str | None:
     return None
 
 
-def _get_dalarna_fallback_records() -> list[NormalizedRecord]:
-    """Curated authentic Dalarna municipal population statistics (SCB Tabell BE0101A)
-    used when api.scb.se is unreachable due to international geo-blocking or network restrictions.
+def _get_dalarna_fallback_records(reason: str = "") -> list[NormalizedRecord]:
+    """STATIC reference population values for the 15 Dalarna municipalities, used only
+    when api.scb.se cannot be reached. These values were hard-coded by the project, not
+    fetched, and have NOT been re-verified against SCB. Every record is tagged
+    data_origin="fallback" so the dashboard labels it as fallback data, never as live.
     """
     municipalities = [
         ("2080", "Falun", 59837),
@@ -93,7 +95,9 @@ def _get_dalarna_fallback_records() -> list[NormalizedRecord]:
             "region": {"code": code, "label": name},
             "indicator": "Folkmängd (Befolkning)",
             "period": "2024",
-            "lan": "20 Dalarnas län"
+            "lan": "20 Dalarnas län",
+            "data_origin": "fallback",
+            "fallback_reason": reason[:300],
         }
         records.append(
             NormalizedRecord(
@@ -126,10 +130,13 @@ def fetch_records(bbox=None) -> list[NormalizedRecord]:
             raise ConnectorError(f"SCB: data HTTP {resp.status_code} for table {table_id} - {resp.text[:200]}")
 
         payload = resp.json()
-        return _jsonstat2_to_records(table_id, payload, data_url)
+        records = _jsonstat2_to_records(table_id, payload, data_url)
+        for r in records:
+            r.attributes["data_origin"] = "live"
+        return records
     except Exception as exc:
-        print(f"[SCB] api.scb.se inaccessible ({exc}), activating official Dalarna regional population dataset")
-        return _get_dalarna_fallback_records()
+        logger.warning("SCB: live API unavailable (%s); returning labelled FALLBACK data", exc)
+        return _get_dalarna_fallback_records("live API unreachable: " + str(exc).split(" (Caused by")[0][:140])
 
 
 def _jsonstat2_to_records(table_id: str, payload: dict, source_url: str) -> list[NormalizedRecord]:

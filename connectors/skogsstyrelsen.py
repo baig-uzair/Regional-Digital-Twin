@@ -159,40 +159,6 @@ def _query_metric(metric: str, token: str, aoi_wkt: str) -> dict:
         raise ConnectorError(f"Skogsstyrelsen {metric}: response was not JSON: {exc}")
 
 
-def _get_dalarna_forestry_fallback_records(aoi_bbox=None) -> list[NormalizedRecord]:
-    """Curated Dalarna forest stand indicators (Skogliga grunddata) for Falun AOI,
-    used when OAuth credentials are not yet configured in .env."""
-    bbox = aoi_bbox or DEFAULT_AOI_BBOX
-    min_lon, min_lat, max_lon, max_lat = bbox
-    wkt = f"POLYGON(({min_lon} {min_lat}, {max_lon} {min_lat}, {max_lon} {max_lat}, {min_lon} {max_lat}, {min_lon} {min_lat}))"
-
-    payload = {
-        "aoi_bbox": list(bbox),
-        "stand_name": "Dalarna Falun Lugnet Skog AOI",
-        "county": "Dalarna",
-        "metrics": {
-            "Volym": {"mean": 188.5, "unit": "m3sk/ha"},
-            "Biomassa": {"mean": 94.2, "unit": "ton/ha"},
-            "Grundyta": {"mean": 25.3, "unit": "m2/ha"},
-            "Medelhojd": {"mean": 18.7, "unit": "m"},
-            "Medeldiameter": {"mean": 21.9, "unit": "cm"}
-        },
-        "description": "Skogsstyrelsen Skogliga grunddata - Dalarna Skogsresurser"
-    }
-    return [
-        NormalizedRecord(
-            source_id=SOURCE_ID,
-            dataset_id="skogliga_grunddata",
-            feature_id="skogsstyrelsen.dalarna.falun.aoi1",
-            observed_at=None,
-            attributes=payload,
-            geometry_wkt=wkt,
-            source_url=LICENSE_URL,
-            license=LICENSE_URL,
-        )
-    ]
-
-
 def fetch_records(bbox=None) -> list[NormalizedRecord]:
     aoi_bbox = bbox or _aoi_bbox_from_env()
     try:
@@ -223,9 +189,10 @@ def fetch_records(bbox=None) -> list[NormalizedRecord]:
                 )
             )
         return records
-    except Exception as exc:
-        print(f"[Skogsstyrelsen] API credentials unconfigured or inaccessible ({exc}), activating Dalarna forestry dataset")
-        return _get_dalarna_forestry_fallback_records(aoi_bbox)
+    except (ConnectorSkipped, ConnectorError):
+        raise
+    except Exception as exc:  # network/parse errors become a recorded error, never invented data
+        raise ConnectorError(f"Skogsstyrelsen: {exc}")
 
 
 def _aoi_bbox_from_env():

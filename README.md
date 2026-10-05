@@ -3,20 +3,21 @@
 ## 1. Démarrage des conteneurs
 docker compose up -d --build
 
-## 2. Initialisation de PostGIS et de la table spatiale
-docker compose exec -T timescaledb psql -U postgres -d dalarna_dt -c "
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE TABLE IF NOT EXISTS regional_telemetry (
-    time TIMESTAMPTZ NOT NULL,
-    entity_id VARCHAR(255) NOT NULL,
-    temperature DOUBLE PRECISION,
-    geom GEOMETRY(Point, 4326)
-);
-SELECT create_hypertable('regional_telemetry', 'time', if_not_exists => TRUE);
-"
+## 2. Initialisation de la base
+
+Automatique : au démarrage, l'application applique `db/telemetry.sql`,
+`db/regional_datasources.sql` et `db/control.sql` (idempotents) et crée l'état de
+contrôle initial. Plus besoin de la commande `psql` manuelle. Les données
+existantes ne sont jamais modifiées ni supprimées.
+
+Variables à définir dans `.env` (voir `.env.example`) : `POSTGRES_*`,
+`ADMIN_USERNAME`, `ADMIN_PASSWORD` (sans mot de passe, la connexion admin est
+désactivée), `SESSION_SECRET` (conseillé) et `PUBLIC_SIMULATION`.
 
 ## 3. Accès aux services
-- Application web : http://localhost:8000
+- Interface principale : http://localhost:8000 (`#/overview`, `#/map`, `#/municipalities`, `#/data-sources`…)
+- Panneau d'administration : http://localhost:8000/admin (connexion `ADMIN_USERNAME` / `ADMIN_PASSWORD`)
+- API : http://localhost:8000/api/... (ex. `/api/control/state`, `/api/datasources/summary`)
 - Tableau de bord Grafana : http://localhost:3000 (identifiants: admin / admin)
 
 ## 4. Nouvelles sources nationales (Lantmäteriet, SCB, Skogsstyrelsen, SGU)
@@ -87,3 +88,24 @@ pour les prendre en compte (même commande qu'à l'étape 1) :
 ```
 docker compose up -d --build
 ```
+
+## 5. Notes d'exploitation (phase 1)
+
+- **Aucune donnée inventée** : si une source échoue, rien n'est écrit et l'erreur est
+  enregistrée (`source_runs`). Une source sans identifiants affiche « Not configured ».
+  Les valeurs statiques SCB utilisées quand `api.scb.se` est injoignable sont étiquetées
+  « fallback data » et ne comptent pas comme « online ».
+- Trafikverket : connecteur réel (WeatherMeasurepoint) activé dès que
+  `TRAFIKVERKET_API_KEY` est renseignée. L'ancienne valeur dérivée « air − 1,2 °C » a été supprimée.
+- Les lignes historiques déjà présentes (route dérivée, anciennes valeurs de repli) ne sont
+  pas supprimées mais ne sont jamais affichées ni utilisées.
+- Tests : `pip install -r requirements-dev.txt` puis `pytest` (nécessite PostgreSQL sur
+  `localhost:5432`, par ex. `docker compose up -d timescaledb`; une base `dalarna_dt_test` est créée).
+
+## 6. Données cartographiques
+
+`static/data/dalarna_municipalities.geojson` : les 15 communes du comté de Dalarna (län 20),
+extraites et simplifiées à partir de
+https://github.com/okfse/sweden-geojson (Open Knowledge Sweden), elles-mêmes dérivées des
+données de Valmyndigheten via OpenDataSoft. Le dépôt indique « Feel free to reuse » mais ne
+contient pas de fichier de licence explicite : vérifier les conditions avant une diffusion publique.

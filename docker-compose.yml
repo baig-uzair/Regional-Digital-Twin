@@ -24,8 +24,8 @@ services:
     image: timescale/timescaledb-ha:pg15-latest
     #container_name: dt-timescaledb
     environment:
-      - POSTGRES_PASSWORD=DalarnaTwin2026!
-      - POSTGRES_DB=dalarna_dt
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      - POSTGRES_DB=${POSTGRES_DB:-dalarna_dt}
     ports:
       - "5432:5432"
     volumes:
@@ -33,15 +33,19 @@ services:
     networks:
       - twin-net
 
-  # --- NOUVEAU SERVICE: WORKER D'INGESTION AUTONOME ---
+  # --- APPLICATION: FastAPI (interface principale, /admin, API) + ordonnanceur d'ingestion ---
   ingestor:
     build: .
     #container_name: dt-ingestor
     restart: always # Redémarre automatiquement si Docker ou la machine reboot
+    env_file: .env
+    environment:
+      - POSTGRES_HOST=timescaledb
+      - ORION_URL=http://orion:1026/ngsi-ld/v1/entities
     ports:
       - "8000:8000"
     volumes:
-      - .:/app    # <-- Indispensable pour que les modifs de index.html soient visibles en direct
+      - .:/app    # <-- Les modifs du code et de static/ sont visibles (redémarrer pour le code Python)
     depends_on:
       - orion
       - timescaledb

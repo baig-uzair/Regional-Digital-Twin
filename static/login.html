@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin login — Dalarna Digital Twin</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+  <div class="login-wrap">
+    <form class="panel login-card" id="form" autocomplete="on">
+      <h1>Dalarna Digital Twin</h1>
+      <p class="muted" style="margin:0">Administrator login</p>
+      <label>Username <input type="text" id="u" name="username" autocomplete="username" required></label>
+      <label>Password <input type="password" id="p" name="password" autocomplete="current-password" required></label>
+      <div class="error-text" id="err" role="alert"></div>
+      <button class="btn primary" id="go" type="submit">Log in</button>
+      <a href="/" class="small muted">← Back to the dashboard</a>
+    </form>
+  </div>
+  <script type="module">
+    import { post } from "/js/api.js";
+    const form = document.getElementById("form");
+    const err = document.getElementById("err");
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      err.textContent = "";
+      const go = document.getElementById("go");
+      go.disabled = true;
+      try {
+        await post("/api/auth/login", { username: form.username.value, password: form.password.value });
+        const next = new URLSearchParams(location.search).get("next") || "/admin";
+        location.href = next.startsWith("/") && !next.startsWith("//") ? next : "/admin";
+      } catch (ex) {
+        err.textContent = ex.message;
+        go.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

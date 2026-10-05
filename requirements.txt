@@ -1,2 +1,6 @@
-requests
-psycopg2-binary
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2.7
+itsdangerous>=2.2
+requests>=2.32
+psycopg2-binary>=2.9

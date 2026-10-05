@@ -1,23 +1,17 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
-# Répertoire de travail dans le conteneur
 WORKDIR /app
 
-# Copie des dépendances et installation
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copie du script et des fichiers web
-COPY ingestor.py .
-COPY index.html .
-COPY datasource_store.py .
-COPY connector_runner.py .
-COPY verify_sources.py .
+# Application code. docker-compose also bind-mounts the project folder over /app for live edits.
+COPY app/ ./app/
 COPY connectors/ ./connectors/
 COPY db/ ./db/
+COPY static/ ./static/
+COPY connector_runner.py datasource_store.py verify_sources.py ./
 
-# Exposer le port du serveur proxy local
 EXPOSE 8000
 
-# Lancement du script
-CMD ["python", "ingestor.py"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

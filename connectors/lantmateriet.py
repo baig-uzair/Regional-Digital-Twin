@@ -43,52 +43,22 @@ def _get_config() -> tuple[str, str, str]:
     return base_url, collection, api_key
 
 
-def _get_dalarna_geodata_fallback_records(bbox=None) -> list[NormalizedRecord]:
-    """Curated Lantmäteriet NGP administrative cadastre reference geodata for Dalarna."""
-    poly_borlange = "POLYGON((15.38 60.45, 15.48 60.45, 15.48 60.53, 15.38 60.53, 15.38 60.45))"
-    poly_falun = "POLYGON((15.58 60.58, 15.68 60.58, 15.68 60.65, 15.58 60.65, 15.58 60.58))"
-
-    return [
-        NormalizedRecord(
-            source_id=SOURCE_ID,
-            dataset_id="ngp_administrative_boundaries",
-            feature_id="LM:DALARNA:BORLANGE:ADM",
-            observed_at=None,
-            geometry_wkt=poly_borlange,
-            attributes={"municipality": "Borlänge", "county": "Dalarna", "type": "Kommungräns", "crs": "EPSG:4326"},
-            source_url=DOC_URL,
-            license="Lantmäteriet Open Geodata / CC0"
-        ),
-        NormalizedRecord(
-            source_id=SOURCE_ID,
-            dataset_id="ngp_administrative_boundaries",
-            feature_id="LM:DALARNA:FALUN:ADM",
-            observed_at=None,
-            geometry_wkt=poly_falun,
-            attributes={"municipality": "Falun", "county": "Dalarna", "type": "Kommungräns", "crs": "EPSG:4326"},
-            source_url=DOC_URL,
-            license="Lantmäteriet Open Geodata / CC0"
-        )
-    ]
-
-
 def fetch_records(bbox, limit: int = 200) -> list[NormalizedRecord]:
-    try:
-        base_url, collection, api_key = _get_config()
+    base_url, collection, api_key = _get_config()  # raises ConnectorSkipped -> "Not configured"
 
-        url = f"{base_url}/collections/{collection}/items"
-        params = {
-            "bbox": ",".join(str(v) for v in bbox),
-            "f": "application/json",
-            "limit": limit,
-        }
-        headers = {"Ocp-Apim-Subscription-Key": api_key}
+    url = f"{base_url}/collections/{collection}/items"
+    params = {
+        "bbox": ",".join(str(v) for v in bbox),
+        "f": "application/json",
+        "limit": limit,
+    }
+    headers = {"Ocp-Apim-Subscription-Key": api_key}
+    try:
         resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
-        if resp.status_code != 200:
-            raise ConnectorError(f"Lantmateriet: HTTP {resp.status_code} from {url} - {resp.text[:200]}")
-    except Exception as exc:
-        print(f"[Lantmateriet] API credentials unconfigured or inaccessible ({exc}), activating Dalarna geodata dataset")
-        return _get_dalarna_geodata_fallback_records(bbox)
+    except requests.RequestException as exc:
+        raise ConnectorError(f"Lantmateriet: request failed: {exc}")
+    if resp.status_code != 200:
+        raise ConnectorError(f"Lantmateriet: HTTP {resp.status_code} from {url} - {resp.text[:200]}")
 
     try:
         payload = resp.json()
