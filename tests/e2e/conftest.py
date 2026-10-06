@@ -99,7 +99,7 @@ def admin_page(page):
     page.fill("input[type=password]", PASSWORD)
     page.keyboard.press("Enter")
     page.wait_for_timeout(800)
-    page.goto(f"{BASE}/admin#overview")
+    page.goto(f"{BASE}/control.html#overview")
     page.wait_for_selector("#cr-saved:not(:text('Loading'))")
     page.wait_for_selector("#cr-content .cr-card")
     return page

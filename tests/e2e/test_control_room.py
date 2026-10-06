@@ -27,8 +27,11 @@ def wait_preview(page):
     page.wait_for_timeout(500)  # let the pending state arrive
 
 
-def test_admin_page_requires_login(page):
-    page.goto(f"{BASE}/admin")
+def test_control_room_requires_login(page):
+    page.goto(f"{BASE}/control.html")
+    page.wait_for_url("**/login**")
+    assert "next=" in page.url
+    page.goto(f"{BASE}/admin")  # the server-side gate for /admin is unchanged
     assert "/login" in page.url
 
 

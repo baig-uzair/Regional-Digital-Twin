@@ -5,6 +5,7 @@ import { get, post, api } from "./api.js";
 import { esc, fmtNum, fmtDateTime, relTime, fmtInterval, toast, openModal, closeModal, openPopover, closePopover } from "./util.js";
 import * as H from "./shared.js";
 
+const LOGIN_URL = "/login?next=/control.html";
 const STATE_KEYS = ["mode", "scope", "sources", "source_intervals", "layers", "components", "risk_thresholds", "active_scenario", "simulation_year"];
 const YEARS = [2026, 2030, 2035, 2040];
 const INTERVALS = [60, 300, 900, 1800, 3600, 21600, 43200, 86400, 604800];
@@ -57,7 +58,7 @@ const srcOn = (s) => { const v = enabledFlag(A.pending?.sources?.[s.id]); return
 // ------------------------------------------------------------------ plumbing
 async function guarded(fn) {
   try { return await fn(); } catch (e) {
-    if (e.status === 401) { toast("Your session ended. Please sign in again.", "error"); setTimeout(() => (location.href = "/login?next=/admin"), 900); }
+    if (e.status === 401) { toast("Your session ended. Please sign in again.", "error"); setTimeout(() => (location.href = LOGIN_URL), 900); }
     throw e;
   }
 }
@@ -97,6 +98,7 @@ async function loadAll() {
   if (!saved) { toast("Unable to load the saved configuration.", "error"); return; }
   A.saved = saved; A.summary = summary || A.summary; A.munis = munis || A.munis; A.scenarios = scenarios?.scenarios || A.scenarios;
   A.mapState = mapState || A.mapState; A.me = me;
+  if (!me?.user) { location.href = LOGIN_URL; return; } // the page shell is static; only administrators may use it
   if (!A.pending) {
     const stored = H.storeGet("session", "cr_pending");
     if (stored && stored.base === saved.version && stored.state) { A.pending = stored.state; toast("Restored your unsaved draft.", "info"); }
@@ -582,7 +584,7 @@ document.addEventListener("click", async (e) => {
     case "apply": applyChanges(); break;
     case "rebase": rebase(); break;
     case "show-diff": openPopover(t, `<div class="pop-title">Unsaved changes</div><ul class="diff-list">${dirty().map((p) => `<li>${esc(pathLabel(p))}</li>`).join("")}</ul>`); break;
-    case "logout": await post("/api/auth/logout", {}).catch(() => null); location.href = "/login?next=/admin"; break;
+    case "logout": await post("/api/auth/logout", {}).catch(() => null); location.href = LOGIN_URL; break;
     case "reload-summary": await reloadSummary(); render(); toast("Reloaded.", "ok", 1500); break;
     case "src-test": testSource(id); break;
     case "src-refresh": refreshSource(id); break;
