@@ -5,30 +5,83 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Dalarna Regional Digital Twin</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/css/app.css">
-  <link rel="stylesheet" href="/css/main.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css">
   <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/main.css">
 </head>
 <body>
   <div class="app" id="app">
     <nav id="nav" aria-label="Main navigation">
-      <div class="brand">DALARNA DIGITAL TWIN</div>
-      <a href="#/overview" data-route="overview">Overview</a>
-      <a href="#/map" data-route="map">Map</a>
-      <a href="#/simulation" data-route="simulation">Simulation</a>
-      <a href="#/municipalities" data-route="municipalities">Municipalities</a>
-      <a href="#/data-sources" data-route="data-sources">Data Sources</a>
-      <a href="#/insights" data-route="insights">Insights</a>
-      <a href="#/reports" data-route="reports">Reports</a>
-      <a href="#/settings" data-route="settings">Settings</a>
+      <div class="brand-logo">
+        <svg viewBox="0 0 48 32" class="pine-trees-icon" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 28L12 24M12 24L6 24L12 16L8 16L12 10L10 10L12 6L14 10L12 10L16 16L12 16L18 24L12 24" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M24 28L24 22M24 22L16 22L24 13L19 13L24 5L29 13L24 13L32 22L24 22" stroke="#34d399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M36 28L36 24M36 24L30 24L36 16L32 16L36 10L34 10L36 6L38 10L36 10L40 16L36 16L42 24L36 24" stroke="#059669" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+      <div class="nav-links">
+        <a href="#/overview" data-route="overview" class="active">
+          <i class="fa-solid fa-house"></i>
+          <span>Overview</span>
+        </a>
+        <a href="#/map" data-route="map">
+          <i class="fa-solid fa-map"></i>
+          <span>Map</span>
+        </a>
+        <a href="#/simulation" data-route="simulation">
+          <i class="fa-solid fa-chart-line"></i>
+          <span>Simulation</span>
+        </a>
+        <a href="#/municipalities" data-route="municipalities">
+          <i class="fa-solid fa-city"></i>
+          <span>Municipalities</span>
+        </a>
+        <a href="#/data-sources" data-route="data-sources">
+          <i class="fa-solid fa-cubes"></i>
+          <span>Data Sources</span>
+        </a>
+        <a href="#/insights" data-route="insights">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>Insights</span>
+        </a>
+        <a href="#/reports" data-route="reports">
+          <i class="fa-solid fa-file-lines"></i>
+          <span>Reports</span>
+        </a>
+        <a href="#/settings" data-route="settings">
+          <i class="fa-solid fa-gear"></i>
+          <span>Settings</span>
+        </a>
+      </div>
+
+      <div class="nav-bottom-widget">
+        <div class="dalarna-shape-box">
+          <svg viewBox="0 0 60 70" class="dalarna-mini-map">
+            <path d="M30 4 L48 18 L55 35 L42 62 L26 67 L10 52 L5 28 L18 10 Z" fill="#6366f1" fill-opacity="0.85" stroke="#a5b4fc" stroke-width="1.5"/>
+          </svg>
+        </div>
+        <div class="widget-meta">
+          <div class="widget-name">Dalarna</div>
+          <div class="widget-sub">15 municipalities</div>
+          <div class="widget-sub">288,000 residents</div>
+        </div>
+      </div>
     </nav>
+
     <div class="main">
       <header id="header"></header>
       <div id="banner"></div>
       <main id="view" tabindex="-1"></main>
     </div>
   </div>
+
+  <div id="toasts"></div>
   <script type="module" src="/js/main.js"></script>
 </body>
 </html>

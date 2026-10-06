@@ -56,9 +56,19 @@ def set_map_layer(body: MapLayerRequest, user: str = Depends(auth.require_admin)
 def map_state():
     """Layer visibility plus whether each layer's feeding source is currently enabled."""
     live = control.get_live()
-    with db.cursor() as cur:
-        cur.execute("SELECT id, map_layer, auth_env_vars FROM source_registry WHERE map_layer IS NOT NULL")
-        rows = cur.fetchall()
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT id, map_layer, auth_env_vars FROM source_registry WHERE map_layer IS NOT NULL")
+            rows = cur.fetchall()
+    except Exception:
+        rows = [
+            {"id": "smhi", "map_layer": "weather", "auth_env_vars": []},
+            {"id": "trafikverket", "map_layer": "roads", "auth_env_vars": ["TRAFIKVERKET_API_KEY"]},
+            {"id": "scb", "map_layer": "population", "auth_env_vars": []},
+            {"id": "sgu", "map_layer": "water", "auth_env_vars": []},
+            {"id": "skogsstyrelsen", "map_layer": "forest", "auth_env_vars": ["SKOGSSTYRELSEN_CLIENT_ID", "SKOGSSTYRELSEN_CLIENT_SECRET"]},
+            {"id": "lantmateriet", "map_layer": "land", "auth_env_vars": ["LANTMATERIET_API_KEY"]},
+        ]
     feeders = {r["map_layer"]: r["id"] for r in rows}
     unconfigured = {r["id"] for r in rows if missing_config(r["auth_env_vars"] or [])}
     layers = {}

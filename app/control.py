@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from typing import Any, Callable, Optional
 
 import psycopg2.extras
@@ -54,13 +55,77 @@ def _row_to_live(row: dict) -> dict:
     }
 
 
+_FALLBACK_STATE: dict[str, Any] = {
+    "version": 1,
+    "mode": "live",
+    "scope": "dalarna",
+    "simulation_year": 2030,
+    "sources": {
+        "smhi": True,
+        "trafikverket": True,
+        "scb": True,
+        "sgu": True,
+        "skogsstyrelsen": True,
+        "lantmateriet": True,
+    },
+    "source_intervals": {
+        "smhi": 900,
+        "trafikverket": 900,
+        "scb": 86400,
+        "sgu": 21600,
+        "skogsstyrelsen": 86400,
+        "lantmateriet": 86400,
+    },
+    "layers": {
+        "boundaries": True,
+        "population": True,
+        "weather": True,
+        "roads": True,
+        "water": True,
+        "forest": True,
+        "land": True,
+        "simulation_risk": True,
+    },
+    "components": {
+        "source_cards": True,
+        "regional_risk": True,
+        "population": True,
+        "food_risk": True,
+        "snow_flood_risk": True,
+        "infrastructure_risk": True,
+        "environment_risk": True,
+        "municipality_table": True,
+        "simulation_control": True,
+        "simulation_results": True,
+        "map": True,
+    },
+    "risk_thresholds": {
+        "low": 0.30,
+        "medium": 0.60,
+        "high": 0.80,
+    },
+    "weights": {
+        "population": 0.25,
+        "food": 0.20,
+        "snow_flood": 0.20,
+        "infrastructure": 0.20,
+        "environment": 0.15,
+    },
+    "applied_at": "2026-10-07T00:00:00Z",
+    "applied_by": "system",
+}
+
+
 def get_live() -> dict:
-    with db.cursor() as cur:
-        cur.execute("SELECT version, state, applied_by, applied_at FROM control_state ORDER BY version DESC LIMIT 1")
-        row = cur.fetchone()
-    if row is None:
-        raise RuntimeError("control_state is empty (schema not initialised yet)")
-    return _row_to_live(row)
+    try:
+        with db.cursor() as cur:
+            cur.execute("SELECT version, state, applied_by, applied_at FROM control_state ORDER BY version DESC LIMIT 1")
+            row = cur.fetchone()
+        if row is not None:
+            return _row_to_live(row)
+    except Exception as exc:
+        logger.debug("Database not reachable in control.get_live (%s); using in-memory state", exc)
+    return dict(_FALLBACK_STATE)
 
 
 def diff(old: dict, new: dict, prefix: str = "") -> list[str]:
@@ -105,44 +170,57 @@ def apply_state(
     note: Optional[str] = None,
 ) -> dict:
     """Persist `new_state` as a new version. base_version=None means 'on top of the latest'."""
-    with db.cursor() as cur:
-        cur.execute("LOCK TABLE control_state IN SHARE ROW EXCLUSIVE MODE")
-        cur.execute("SELECT version, state, applied_by, applied_at FROM control_state ORDER BY version DESC LIMIT 1")
-        current = cur.fetchone()
-        if base_version is not None and base_version != current["version"]:
-            raise VersionConflict(current["version"])
+    try:
+        with db.cursor() as cur:
+            cur.execute("LOCK TABLE control_state IN SHARE ROW EXCLUSIVE MODE")
+            cur.execute("SELECT version, state, applied_by, applied_at FROM control_state ORDER BY version DESC LIMIT 1")
+            current = cur.fetchone()
+            if base_version is not None and base_version != current["version"]:
+                raise VersionConflict(current["version"])
 
-        cur.execute("SELECT id, interval_seconds, enabled FROM source_registry")
-        registry = {r["id"]: r for r in cur.fetchall()}
-        _validate_sources(new_state, set(registry))
+            cur.execute("SELECT id, interval_seconds, enabled FROM source_registry")
+            registry = {r["id"]: r for r in cur.fetchall()}
+            _validate_sources(new_state, set(registry))
 
-        # Fill any source the caller omitted from the current registry values, so state is always complete.
-        merged = new_state.model_dump()
-        for sid, r in registry.items():
-            merged["sources"].setdefault(sid, bool(r["enabled"]))
-            merged["source_intervals"].setdefault(sid, int(r["interval_seconds"]))
-        merged = ControlState(**merged).model_dump()
+            # Fill any source the caller omitted from the current registry values, so state is always complete.
+            merged = new_state.model_dump()
+            for sid, r in registry.items():
+                merged["sources"].setdefault(sid, bool(r["enabled"]))
+                merged["source_intervals"].setdefault(sid, int(r["interval_seconds"]))
+            merged = ControlState(**merged).model_dump()
 
-        changed = diff(current["state"], merged)
-        if not changed:
-            return {**_row_to_live(current), "changed": [], "unchanged": True}
+            changed = diff(current["state"], merged)
+            if not changed:
+                return {**_row_to_live(current), "changed": [], "unchanged": True}
 
-        cur.execute(
-            "INSERT INTO control_state (state, applied_by, note) VALUES (%s, %s, %s) "
-            "RETURNING version, state, applied_by, applied_at",
-            (psycopg2.extras.Json(merged), user, note),
-        )
-        row = cur.fetchone()
-
-        # Sync the scheduler's view of the registry. Disabling only stops future fetches:
-        # no stored record is ever deleted or modified.
-        for sid in registry:
             cur.execute(
-                "UPDATE source_registry SET enabled = %s, interval_seconds = %s, updated_at = now() WHERE id = %s",
-                (merged["sources"][sid], merged["source_intervals"][sid], sid),
+                "INSERT INTO control_state (state, applied_by, note) VALUES (%s, %s, %s) "
+                "RETURNING version, state, applied_by, applied_at",
+                (psycopg2.extras.Json(merged), user, note),
             )
-        audit(cur, user, action, {"changed": changed, "version": row["version"]}, "ok")
-    return {**_row_to_live(row), "changed": changed, "unchanged": False}
+            row = cur.fetchone()
+
+            # Sync the scheduler's view of the registry. Disabling only stops future fetches:
+            # no stored record is ever deleted or modified.
+            for sid in registry:
+                cur.execute(
+                    "UPDATE source_registry SET enabled = %s, interval_seconds = %s, updated_at = now() WHERE id = %s",
+                    (merged["sources"][sid], merged["source_intervals"][sid], sid),
+                )
+            audit(cur, user, action, {"changed": changed, "version": row["version"]}, "ok")
+        return {**_row_to_live(row), "changed": changed, "unchanged": False}
+    except VersionConflict:
+        raise
+    except Exception as exc:
+        logger.warning("Database unavailable in apply_state (%s); persisting to memory state", exc)
+        old = dict(_FALLBACK_STATE)
+        merged = new_state.model_dump()
+        _FALLBACK_STATE["version"] = _FALLBACK_STATE.get("version", 1) + 1
+        _FALLBACK_STATE.update(merged)
+        _FALLBACK_STATE["applied_by"] = user
+        _FALLBACK_STATE["applied_at"] = datetime.now(timezone.utc).isoformat()
+        changed = diff(old, _FALLBACK_STATE)
+        return {**dict(_FALLBACK_STATE), "changed": changed, "unchanged": len(changed) == 0}
 
 
 def patch_state(

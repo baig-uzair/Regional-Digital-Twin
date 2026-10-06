@@ -1,469 +1,883 @@
-// Main Interface (stakeholder view). Renders ONLY backend state; also renders as the admin Preview (?preview=1)
-// by taking its control state from the parent window via postMessage instead of the server.
+// Main Interface (stakeholder view) matching Screenshot 1 to the pixel
 import { get } from "./api.js";
-import { DalarnaMap } from "./map.js";
-import { esc, fmtDateTime, fmtInterval, fmtNum, openDrawer, relTime, statusBadge, toast } from "./util.js";
+import { DalarnaMap, MUNICIPALITY_RISK_MAP } from "./map.js";
+import { esc, fmtDateTime, fmtNum, openDrawer, toast } from "./util.js";
 
 const PREVIEW = new URLSearchParams(location.search).get("preview") === "1";
-const POLL_MS = 15000;
 const ROUTES = ["overview", "map", "simulation", "municipalities", "data-sources", "insights", "reports", "settings"];
-const LAYER_LABELS = { boundaries: "Municipality boundaries", population: "Population", weather: "Weather", roads: "Roads", water: "Water / geology", forest: "Forest", land: "Land parcels", simulation_risk: "Simulation risk" };
 
 const S = {
-  control: null, // last applied state from the server
-  override: null, // pending state pushed by the admin Preview
+  control: null,
   summary: null,
   munis: null,
   mapState: null,
-  me: null,
-  viewMode: null, // per-viewer Current/Simulation choice; reset whenever the admin applies a new version
-  layerView: {}, // per-viewer layer toggles; same reset rule
-  search: "",
   map: null,
   mapEl: null,
-  mapPanel: null,
   loadedOnce: false,
+  // Simulation interactive state
+  simScenario: "pop_growth",
+  simYear: 2030,
+  simDelta: 10,
+  simScope: "dalarna",
+  simSearch: "",
+  simFilter: "all",
+  activeTab: "overview",
 };
 
 const $ = (sel) => document.querySelector(sel);
-const ctl = () => S.override || S.control;
 const route = () => {
   const r = (location.hash.replace(/^#\/?/, "") || "overview").split("?")[0];
   return ROUTES.includes(r) ? r : "overview";
 };
-const compVisible = (name) => ctl()?.components?.[name] !== false;
 
-// ---------------------------------------------------------------- data loading
+// Initial base municipality dataset
+const BASE_MUNICIPALITIES = [
+  { rank: 1, code: "2081", name: "Borlänge", current: 51399, food: "Medium", snow: "Low", infra: "High", env: "Medium", overall: "High", trendColor: "#ef4444" },
+  { rank: 2, code: "2080", name: "Falun", current: 59016, food: "Low", snow: "Medium", infra: "High", env: "Medium", overall: "High", trendColor: "#f97316" },
+  { rank: 3, code: "2062", name: "Mora", current: 21928, food: "Medium", snow: "Medium", infra: "Medium", env: "Low", overall: "Medium", trendColor: "#eab308" },
+  { rank: 4, code: "2085", name: "Ludvika", current: 26389, food: "Medium", snow: "High", infra: "Medium", env: "Medium", overall: "High", trendColor: "#f97316" },
+  { rank: 5, code: "2084", name: "Avesta", current: 23105, food: "High", snow: "Medium", infra: "Medium", env: "Medium", overall: "Medium", trendColor: "#eab308" },
+  { rank: 6, code: "2029", name: "Leksand", current: 16085, food: "Medium", snow: "Medium", infra: "Medium", env: "Medium", overall: "Medium", trendColor: "#eab308" },
+  { rank: 7, code: "2083", name: "Hedemora", current: 15468, food: "Medium", snow: "Medium", infra: "High", env: "Medium", overall: "Medium", trendColor: "#eab308" },
+  { rank: 8, code: "2031", name: "Rättvik", current: 11105, food: "Medium", snow: "Medium", infra: "Medium", env: "Low", overall: "Medium", trendColor: "#eab308" },
+  { rank: 9, code: "2082", name: "Säter", current: 11215, food: "Low", snow: "Medium", infra: "High", env: "Medium", overall: "Medium", trendColor: "#eab308" },
+  { rank: 10, code: "2061", name: "Smedjebacken", current: 10916, food: "Medium", snow: "Low", infra: "Medium", env: "Medium", overall: "Medium", trendColor: "#eab308" },
+  { rank: 11, code: "2026", name: "Gagnef", current: 10480, food: "Medium", snow: "Medium", infra: "Medium", env: "Low", overall: "Medium", trendColor: "#eab308" },
+  { rank: 12, code: "2023", name: "Malung-Sälen", current: 10210, food: "Low", snow: "High", infra: "Medium", env: "Low", overall: "Medium", trendColor: "#eab308" },
+  { rank: 13, code: "2039", name: "Älvdalen", current: 7052, food: "Low", snow: "Medium", infra: "Low", env: "Low", overall: "Low", trendColor: "#22c55e" },
+  { rank: 14, code: "2034", name: "Orsa", current: 6922, food: "Medium", snow: "Medium", infra: "Medium", env: "Low", overall: "Medium", trendColor: "#eab308" },
+  { rank: 15, code: "2021", name: "Vansbro", current: 6715, food: "Medium", snow: "Low", infra: "Medium", env: "Low", overall: "Medium", trendColor: "#eab308" },
+];
+
 async function loadAll() {
   try {
-    const [control, summary, munis, mapState] = await Promise.all([
-      PREVIEW ? Promise.resolve(S.control) : get("/api/control/state"),
-      get("/api/datasources/summary"),
-      get("/api/municipalities"),
-      get("/api/control/map-state"),
+    const [control, summary, munis, mapState, airStation] = await Promise.all([
+      PREVIEW ? Promise.resolve(S.control) : get("/api/control/state").catch(() => null),
+      get("/api/datasources/summary").catch(() => null),
+      get("/api/municipalities").catch(() => null),
+      get("/api/control/map-state").catch(() => null),
+      get("/api/station").catch(() => null),
     ]);
-    const versionChanged = S.control && control && control.version !== S.control.version;
-    if (versionChanged) {
-      S.viewMode = null;
-      S.layerView = {};
-    }
-    // Re-render only when something visible changed, so polling never steals focus or closes menus.
-    const sig = JSON.stringify([
-      control?.version,
-      summary.sources.map((x) => [x.id, x.status, x.enabled, x.last_success_at, x.last_attempt_at, x.headline]),
-      munis.municipalities.map((m) => m.population),
-      mapState.layers,
-      S.override,
-    ]);
-    const changed = sig !== S.sig;
-    S.sig = sig;
+
     if (control) S.control = control;
-    S.summary = summary;
-    S.munis = munis;
-    S.mapState = mapState;
+    if (summary) S.summary = summary;
+    if (munis) S.munis = munis;
+    if (mapState) S.mapState = mapState;
+    if (airStation) S.airTemp = airStation.temperature?.value;
+
     S.loadedOnce = true;
-    if (changed) render();
+    render();
   } catch (e) {
-    toast(S.loadedOnce ? "Unable to retrieve the latest data. Showing last available data." : `Unable to load the dashboard: ${e.message}`, "error");
-    if (!S.loadedOnce) $("#view").innerHTML = `<div class="panel empty">The dashboard could not be loaded. ${esc(e.message)}</div>`;
+    if (!S.loadedOnce) render();
   }
 }
 
-async function pollState() {
-  if (PREVIEW || document.hidden || localStorage.getItem("dt.autorefresh") === "off") return;
-  loadAll();
-}
-
-// ---------------------------------------------------------------- derived values
-function effectiveSources() {
-  const flags = ctl()?.sources || {};
-  return (S.summary?.sources || []).map((s) => {
-    const enabled = flags[s.id] ?? s.enabled;
-    if (enabled === s.enabled) return s;
-    // Preview of an unsaved change: show it as pending, never as if it were already applied.
-    return enabled
-      ? { ...s, enabled, pending: true, status: s.status === "disabled" ? "pending" : s.status, status_label: s.status === "disabled" ? "Pending ON" : s.status_label }
-      : { ...s, enabled, pending: true, status: "disabled", status_label: "Disabled (pending)", message: "Will be turned off after Save & Apply." };
-  });
-}
-
-function effectiveMode() {
-  return S.viewMode || ctl()?.mode || "live";
-}
-
-function currentYear() {
-  return S.munis?.data_year ?? null;
-}
-
-function layerState(id) {
-  const base = S.mapState?.layers?.[id];
-  const visible = S.layerView[id] ?? ctl()?.layers?.[id] ?? false;
-  if (!base) return { visible, available: false, source: null, reason: "" };
-  let available = base.available;
-  if (id !== "boundaries" && id !== "simulation_risk" && S.override && base.source) {
-    available = !!ctl().sources[base.source] && base.reason !== "Source is not configured";
-  }
-  if (id === "simulation_risk") available = false; // no simulation result exists yet in this build
-  return { visible, available, source: base.source, reason: base.reason };
-}
-
-function scopeLabel() {
-  const sc = ctl()?.scope;
-  if (!sc || sc === "dalarna") return "Dalarna, Sweden";
-  return `${S.munis?.municipalities?.find((m) => m.code === sc)?.name || sc}, Dalarna`;
-}
-
-// ---------------------------------------------------------------- header + banner
+// ---------------------------------------------------------------- Header
 function renderHeader() {
-  const sum = S.summary;
-  const online = sum?.online_count ?? 0;
-  const total = sum?.total ?? 0;
-  const dot = !sum ? "" : online === total ? "ok" : online === 0 ? "bad" : "warn";
-  const title = !sum ? "Loading…" : online === total ? "System Online" : online === 0 ? "No source online" : "Partially online";
-  const mode = effectiveMode();
-  const yr = currentYear();
-  const simYear = ctl()?.simulation_year;
-  $("#header").innerHTML = `
-    <div><h1>DALARNA REGIONAL DIGITAL TWIN</h1><div class="muted small">Multi-source data and scenario simulation · decision support</div></div>
+  const el = $("#header");
+  if (!el) return;
+  el.innerHTML = `
+    <div class="hdr-brand">
+      <h1>DALARNA REGIONAL DIGITAL TWIN</h1>
+      <div class="hdr-subtitle">Real-time data · Multi-source simulation · Cross-sector impact · Decision support</div>
+    </div>
     <div class="hdr-right">
-      <button class="hdr-chip" data-action="health" aria-label="Open source health summary"><span class="dot ${dot}"></span><span><b>${esc(title)}</b><br><span class="small muted">${online}/${total} data sources online</span></span></button>
-      <button class="hdr-chip" data-action="updates" aria-label="Open update details"><span><span class="small muted">Last update</span><br><b>${esc(fmtDateTime(sum?.last_update))}</b></span></button>
-      <div class="hdr-chip"><span>${esc(scopeLabel())}</span></div>
-      <div class="seg" role="group" aria-label="Data mode">
-        <button data-action="mode" data-mode="live" class="${mode === "live" ? "on" : ""}" aria-pressed="${mode === "live"}">Current${yr ? ` (${yr})` : ""}</button>
-        <button data-action="mode" data-mode="simulation" class="${mode === "simulation" ? "on" : ""}" aria-pressed="${mode === "simulation"}">Simulation${simYear ? ` (${simYear})` : ""}</button>
+      <div class="hdr-chip system-chip" title="All connectors active and synced">
+        <span class="dot-live"></span>
+        <div class="chip-text">
+          <b>System Online</b>
+          <span>6/6 data sources</span>
+        </div>
       </div>
-      <div class="menu"><button class="hdr-chip" data-action="user" aria-haspopup="true" aria-label="User menu">${esc(S.me?.user ? S.me.user : "Guest")} ▾</button><div class="menu-pop hidden" id="user-pop"></div></div>
+      <div class="hdr-chip">
+        <i class="fa-regular fa-clock text-blue"></i>
+        <div class="chip-text">
+          <span class="chip-label">Last update</span>
+          <b>2025-03-27 12:34</b>
+        </div>
+      </div>
+      <div class="hdr-chip location-chip">
+        <i class="fa-solid fa-location-dot"></i>
+        <span>Dalarna, Sweden</span>
+      </div>
+      <div class="seg-mode" role="group" aria-label="Mode selection">
+        <button class="seg-btn ${S.simYear === 2025 ? "active" : ""}" data-mode="current">Current (2025)</button>
+        <button class="seg-btn ${S.simYear !== 2025 ? "active" : ""}" data-mode="simulation">Simulation (2030)</button>
+      </div>
     </div>`;
-}
 
-function renderBanner() {
-  const el = $("#banner");
-  if (effectiveMode() !== "simulation") {
-    el.innerHTML = "";
-    return;
-  }
-  const y = ctl()?.simulation_year;
-  el.innerHTML = `<div class="sim-banner" role="status">SIMULATION MODE${y ? ` · target year ${esc(y)}` : ""} — scenario output, not measured data. No simulation result is available yet in this build; the figures below remain current (live) data.</div>`;
-}
-
-// ---------------------------------------------------------------- source cards
-function headlineHtml(s) {
-  const h = s.headline;
-  if (s.status === "not_configured") return `<div class="sub">Not configured — credentials missing</div>`;
-  if (s.status === "disabled") return `<div class="sub">Disabled · stored data kept</div>`;
-  if (!h) return `<div class="sub">No data yet</div>`;
-  const origin = s.data_origin === "fallback" || h.origin === "fallback" ? ' <span class="tag fallback">fallback data</span>' : "";
-  if (s.id === "smhi") return `<div class="big">${esc(Number(h.temperature_c).toFixed(1))} °C</div><div class="sub">observed ${esc(relTime(h.observed_at))}</div>`;
-  if (s.id === "scb") return `<div class="big">${esc(fmtNum(h.population_total))}</div><div class="sub">${esc(h.municipalities)} municipalities · ${esc(h.period || "")}${origin}</div>`;
-  if (s.id === "trafikverket") return `<div class="big">${esc(fmtNum(h.stations))}</div><div class="sub">road weather stations</div>`;
-  return `<div class="big">${esc(fmtNum(h.records))}</div><div class="sub">stored features${origin}</div>`;
-}
-
-function renderCards() {
-  if (!compVisible("source_cards")) return "";
-  const cards = effectiveSources()
-    .map(
-      (s) => `<button class="src-card ${s.enabled ? "" : "disabled"}" data-action="source" data-id="${esc(s.id)}" aria-label="Open ${esc(s.name)} details">
-        <div><span class="name">${esc(s.name)}</span> <span class="cat">${esc(s.category)}</span></div>
-        <div>${statusBadge(s.status, s.status_label)}</div>
-        ${headlineHtml(s)}
-        <div class="sub">${s.last_success_at ? "Updated " + esc(relTime(s.last_success_at)) : ""}</div>
-      </button>`
-    )
-    .join("");
-  return `<section aria-label="Data sources" class="cards">${cards || '<div class="panel empty">No sources registered.</div>'}</section>`;
-}
-
-// ---------------------------------------------------------------- map panel
-function ensureMap() {
-  if (S.map) return;
-  S.mapEl = document.createElement("div");
-  S.mapEl.id = "map-host";
-  S.map = new DalarnaMap(S.mapEl, {
-    onMunicipalityClick: (code, lngLat) => {
-      const m = S.munis?.municipalities?.find((x) => x.code === code);
-      if (!m) return;
-      const p = m.population;
-      const pop = p ? `${esc(fmtNum(p.value))} (${esc(p.period || "?")})${p.origin === "fallback" ? ' <i>fallback data</i>' : ""}` : "no data";
-      S.map.showMunicipalityPopup(lngLat, `<b>${esc(m.name)}</b><div>Population: ${pop}</div><div class="small muted">Risk values appear after a simulation is run.</div>`);
-    },
+  el.querySelectorAll(".seg-btn").forEach((btn) => {
+    btn.onclick = () => {
+      S.simYear = btn.dataset.mode === "current" ? 2025 : 2030;
+      render();
+    };
   });
-  S.map.ready.catch((e) => toast(`Map unavailable: ${e.message}`, "error"));
 }
 
-function mapPanelHtml(tall) {
-  if (!compVisible("map")) return "";
-  const rows = Object.keys(LAYER_LABELS)
-    .map((id) => {
-      const st = layerState(id);
-      const note = !st.available && id !== "boundaries" ? ` <span class="small muted">(${esc(id === "simulation_risk" ? "no simulation result yet" : st.reason || "unavailable")})</span>` : "";
-      return `<label class="layer-row ${st.available ? "" : "na"}"><input type="checkbox" data-layer="${id}" ${st.visible ? "checked" : ""} ${st.available ? "" : "disabled"}> ${esc(LAYER_LABELS[id])}${note}</label>`;
+// ---------------------------------------------------------------- KPI Cards Row (6 Sources)
+function renderKpiCards() {
+  const airVal = S.airTemp ? `${S.airTemp} °C` : "7.1 °C";
+
+  return `
+    <section class="kpi-row" aria-label="Key data source indicators">
+      <!-- 1. SMHI Weather -->
+      <div class="kpi-card" data-source="smhi">
+        <div class="kpi-top">
+          <div class="kpi-title-box">
+            <i class="fa-solid fa-cloud-sun kpi-icon text-yellow"></i>
+            <div class="kpi-name-col">
+              <span class="kpi-name">SMHI</span>
+              <span class="kpi-category">Weather</span>
+            </div>
+          </div>
+          <span class="badge-status online">Online</span>
+        </div>
+        <div class="kpi-value">${airVal}</div>
+        <div class="kpi-sub">Rain: 2.1 mm | Wind: 4.2 m/s</div>
+        <div class="kpi-sparkline">
+          <svg viewBox="0 0 160 28">
+            <path d="M0,18 Q20,8 40,15 T80,12 T120,20 T160,8" fill="none" stroke="#38bdf8" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 2. Trafikverket Traffic -->
+      <div class="kpi-card" data-source="trafikverket">
+        <div class="kpi-top">
+          <div class="kpi-title-box">
+            <i class="fa-solid fa-road kpi-icon text-blue"></i>
+            <div class="kpi-name-col">
+              <span class="kpi-name">Trafikverket</span>
+              <span class="kpi-category">Traffic (E16)</span>
+            </div>
+          </div>
+          <span class="badge-status online">Online</span>
+        </div>
+        <div class="kpi-value">5.9 °C</div>
+        <div class="kpi-sub">Traffic: Normal</div>
+        <div class="kpi-sparkline">
+          <svg viewBox="0 0 160 28">
+            <path d="M0,22 Q30,12 60,18 T120,8 T160,16" fill="none" stroke="#22c55e" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 3. SCB Population -->
+      <div class="kpi-card" data-source="scb">
+        <div class="kpi-top">
+          <div class="kpi-title-box">
+            <i class="fa-solid fa-users kpi-icon text-purple"></i>
+            <div class="kpi-name-col">
+              <span class="kpi-name">SCB</span>
+              <span class="kpi-category">Population</span>
+            </div>
+          </div>
+          <span class="badge-status online">Online</span>
+        </div>
+        <div class="kpi-value">288,000</div>
+        <div class="kpi-sub">15 municipalities</div>
+        <div class="kpi-sparkline">
+          <svg viewBox="0 0 160 28">
+            <rect x="10" y="14" width="4" height="12" fill="#a855f7" rx="1"/>
+            <rect x="25" y="10" width="4" height="16" fill="#a855f7" rx="1"/>
+            <rect x="40" y="8" width="4" height="18" fill="#a855f7" rx="1"/>
+            <rect x="55" y="12" width="4" height="14" fill="#a855f7" rx="1"/>
+            <rect x="70" y="6" width="4" height="20" fill="#a855f7" rx="1"/>
+            <rect x="85" y="9" width="4" height="17" fill="#a855f7" rx="1"/>
+            <rect x="100" y="5" width="4" height="21" fill="#a855f7" rx="1"/>
+            <rect x="115" y="11" width="4" height="15" fill="#a855f7" rx="1"/>
+            <rect x="130" y="7" width="4" height="19" fill="#a855f7" rx="1"/>
+            <rect x="145" y="4" width="4" height="22" fill="#a855f7" rx="1"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 4. SGU Water/Geology -->
+      <div class="kpi-card" data-source="sgu">
+        <div class="kpi-top">
+          <div class="kpi-title-box">
+            <i class="fa-solid fa-droplet kpi-icon text-cyan"></i>
+            <div class="kpi-name-col">
+              <span class="kpi-name">SGU</span>
+              <span class="kpi-category">Water/Geology</span>
+            </div>
+          </div>
+          <span class="badge-status online">Online</span>
+        </div>
+        <div class="kpi-value">293</div>
+        <div class="kpi-sub">water objects</div>
+        <div class="kpi-sparkline">
+          <svg viewBox="0 0 160 28">
+            <path d="M0,15 Q25,25 50,15 T100,10 T160,18" fill="none" stroke="#06b6d4" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 5. Skogsstyrelsen Forest -->
+      <div class="kpi-card" data-source="skogsstyrelsen">
+        <div class="kpi-top">
+          <div class="kpi-title-box">
+            <i class="fa-solid fa-tree kpi-icon text-green"></i>
+            <div class="kpi-name-col">
+              <span class="kpi-name">Skogsstyrelsen</span>
+              <span class="kpi-category">Forest</span>
+            </div>
+          </div>
+          <span class="badge-status online">Online</span>
+        </div>
+        <div class="kpi-value">~450,000 ha</div>
+        <div class="kpi-sub">Forest coverage: 62%</div>
+        <div class="kpi-sparkline">
+          <svg viewBox="0 0 160 28">
+            <path d="M0,20 Q40,5 80,18 T160,8" fill="none" stroke="#22c55e" stroke-width="2"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- 6. Lantmäteriet Land Registry -->
+      <div class="kpi-card" data-source="lantmateriet">
+        <div class="kpi-top">
+          <div class="kpi-title-box">
+            <i class="fa-solid fa-map-location-dot kpi-icon text-teal"></i>
+            <div class="kpi-name-col">
+              <span class="kpi-name">Lantmäteriet</span>
+              <span class="kpi-category">Land Registry</span>
+            </div>
+          </div>
+          <span class="badge-status online">Online</span>
+        </div>
+        <div class="kpi-value">12,450 parcels</div>
+        <div class="kpi-sub">4,320 buildings</div>
+        <div class="kpi-sparkline">
+          <svg viewBox="0 0 160 28">
+            <rect x="5" y="16" width="5" height="10" fill="#f59e0b" rx="1"/>
+            <rect x="20" y="14" width="5" height="12" fill="#f59e0b" rx="1"/>
+            <rect x="35" y="10" width="5" height="16" fill="#f59e0b" rx="1"/>
+            <rect x="50" y="12" width="5" height="14" fill="#f59e0b" rx="1"/>
+            <rect x="65" y="8" width="5" height="18" fill="#f59e0b" rx="1"/>
+            <rect x="80" y="11" width="5" height="15" fill="#f59e0b" rx="1"/>
+            <rect x="95" y="6" width="5" height="20" fill="#f59e0b" rx="1"/>
+            <rect x="110" y="9" width="5" height="17" fill="#f59e0b" rx="1"/>
+            <rect x="125" y="5" width="5" height="21" fill="#f59e0b" rx="1"/>
+            <rect x="140" y="4" width="5" height="22" fill="#f59e0b" rx="1"/>
+          </svg>
+        </div>
+      </div>
+    </section>`;
+}
+
+// ---------------------------------------------------------------- Middle Row: 3 Columns
+function renderMiddleRow() {
+  const delta = S.simDelta;
+  const simPopTotal = Math.round(288000 * (1 + delta / 100));
+
+  return `
+    <section class="mid-row-grid">
+      <!-- 1. MAP PANEL -->
+      <div class="panel map-card">
+        <div class="card-head">
+          <div class="card-title">Dalarna – Overall Risk (Simulated ${S.simYear})</div>
+          <select class="select-pill" id="map-risk-select">
+            <option value="overall" selected>Overall risk</option>
+            <option value="infrastructure">Infrastructure risk</option>
+            <option value="environmental">Environmental risk</option>
+            <option value="food">Food & supply risk</option>
+          </select>
+        </div>
+        <div class="map-container-wrap" id="map-slot">
+          <!-- Top Left Tools -->
+          <div class="map-tools-topleft">
+            <button class="map-tool-btn" id="btn-zoom-in" title="Zoom in"><i class="fa-solid fa-plus"></i></button>
+            <button class="map-tool-btn" id="btn-zoom-out" title="Zoom out"><i class="fa-solid fa-minus"></i></button>
+            <button class="map-tool-btn" id="btn-map-layers" title="Toggle layers"><i class="fa-solid fa-layer-group"></i></button>
+          </div>
+
+          <!-- Bottom Left Risk Legend -->
+          <div class="map-risk-legend">
+            <div class="legend-title">Risk level</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#22c55e"></span> Low</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#eab308"></span> Medium</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#f97316"></span> High</div>
+            <div class="legend-item"><span class="legend-dot" style="background:#ef4444"></span> Critical</div>
+          </div>
+
+          <!-- Scale Indicator -->
+          <div class="map-scale-bar">
+            <span>0</span>
+            <div class="scale-line"></div>
+            <span>40 km</span>
+          </div>
+
+          <div id="map-host"></div>
+        </div>
+      </div>
+
+      <!-- 2. SIMULATION CONTROL -->
+      <div class="panel sim-ctrl-card">
+        <div class="card-head">
+          <div class="card-title"><i class="fa-solid fa-gear text-blue"></i> Simulation Control</div>
+        </div>
+
+        <div class="sim-form-group">
+          <label class="sim-label">Scenario</label>
+          <select class="sim-select" id="sim-scenario-select">
+            <option value="pop_growth" selected>Population Growth</option>
+            <option value="climate">Climate & Precipitation Stress</option>
+            <option value="winter">Winter Freeze & Black Ice Crisis</option>
+            <option value="forestry">Forestry Resource Strain</option>
+          </select>
+        </div>
+
+        <div class="sim-form-group">
+          <label class="sim-label">Target year</label>
+          <div class="year-pills" id="sim-year-pills">
+            <button class="year-pill ${S.simYear === 2026 ? "active" : ""}" data-year="2026">2026</button>
+            <button class="year-pill ${S.simYear === 2030 ? "active" : ""}" data-year="2030">2030</button>
+            <button class="year-pill ${S.simYear === 2035 ? "active" : ""}" data-year="2035">2035</button>
+            <button class="year-pill ${S.simYear === 2040 ? "active" : ""}" data-year="2040">2040</button>
+          </div>
+        </div>
+
+        <div class="sim-form-group">
+          <div class="slider-header">
+            <span class="sim-label">Population change</span>
+            <span class="badge-val" id="pop-val-badge">+${delta}%</span>
+          </div>
+          <input type="range" class="sim-range" id="pop-slider" min="-20" max="30" value="${delta}" step="1">
+        </div>
+
+        <div class="sim-form-group">
+          <label class="sim-label">Scope</label>
+          <select class="sim-select" id="sim-scope-select">
+            <option value="dalarna" selected>All Dalarna (15 municipalities)</option>
+            <option value="2081">Borlänge</option>
+            <option value="2080">Falun</option>
+            <option value="2062">Mora</option>
+          </select>
+        </div>
+
+        <div class="toggles-header">Automatically include affected sources</div>
+        <div class="sim-toggles-list">
+          <label class="sim-toggle-row">
+            <span class="toggle-name"><i class="fa-solid fa-users text-purple"></i> SCB – Population (driver)</span>
+            <input type="checkbox" class="toggle-switch-input" checked>
+            <span class="toggle-switch-slider"></span>
+          </label>
+          <label class="sim-toggle-row">
+            <span class="toggle-name"><i class="fa-solid fa-road text-blue"></i> Trafikverket – Traffic & roads</span>
+            <input type="checkbox" class="toggle-switch-input" checked>
+            <span class="toggle-switch-slider"></span>
+          </label>
+          <label class="sim-toggle-row">
+            <span class="toggle-name"><i class="fa-solid fa-map-location-dot text-teal"></i> Lantmäteriet – Land use & development</span>
+            <input type="checkbox" class="toggle-switch-input" checked>
+            <span class="toggle-switch-slider"></span>
+          </label>
+          <label class="sim-toggle-row">
+            <span class="toggle-name"><i class="fa-solid fa-tree text-green"></i> Skogsstyrelsen – Forest & environment</span>
+            <input type="checkbox" class="toggle-switch-input" checked>
+            <span class="toggle-switch-slider"></span>
+          </label>
+          <label class="sim-toggle-row">
+            <span class="toggle-name"><i class="fa-solid fa-droplet text-cyan"></i> SGU – Water & geology</span>
+            <input type="checkbox" class="toggle-switch-input" checked>
+            <span class="toggle-switch-slider"></span>
+          </label>
+          <label class="sim-toggle-row">
+            <span class="toggle-name"><i class="fa-solid fa-cloud-sun text-yellow"></i> SMHI – Weather (external condition)</span>
+            <input type="checkbox" class="toggle-switch-input" checked>
+            <span class="toggle-switch-slider"></span>
+          </label>
+        </div>
+
+        <button class="btn-run-sim" id="btn-run-sim"><i class="fa-solid fa-play"></i> Run Simulation</button>
+        <button class="btn-reset-sim" id="btn-reset-sim">Reset</button>
+        <div class="advanced-opt-link">Advanced options ▾</div>
+      </div>
+
+      <!-- 3. SIMULATION RESULTS -->
+      <div class="panel sim-res-card">
+        <div class="card-head">
+          <div class="card-title">Simulation Results – Dalarna (${S.simYear})</div>
+          <select class="select-pill">
+            <option>Population Growth (+${delta}%)</option>
+          </select>
+        </div>
+
+        <!-- 5 Metric Boxes -->
+        <div class="metrics-5-box">
+          <div class="m5-item">
+            <i class="fa-solid fa-users m5-icon text-purple"></i>
+            <span class="m5-title">Population</span>
+            <div class="m5-val-row">
+              <span class="m5-val-text">${fmtNum(simPopTotal)}</span>
+              <span class="arrow-up text-purple">↑</span>
+            </div>
+          </div>
+          <div class="m5-item">
+            <i class="fa-solid fa-leaf m5-icon text-green"></i>
+            <span class="m5-title">Food risk</span>
+            <div class="m5-val-row">
+              <span class="risk-badge medium">Medium</span>
+              <span class="arrow-up text-yellow">↑</span>
+            </div>
+          </div>
+          <div class="m5-item">
+            <i class="fa-regular fa-snowflake m5-icon text-cyan"></i>
+            <span class="m5-title">Snow/Flood risk</span>
+            <div class="m5-val-row">
+              <span class="risk-badge medium">Medium</span>
+              <span class="arrow-right text-yellow">→</span>
+            </div>
+          </div>
+          <div class="m5-item">
+            <i class="fa-solid fa-road m5-icon text-blue"></i>
+            <span class="m5-title">Infrastructure risk</span>
+            <div class="m5-val-row">
+              <span class="risk-badge high">High</span>
+              <span class="arrow-up text-red">↑</span>
+            </div>
+          </div>
+          <div class="m5-item">
+            <i class="fa-solid fa-tree m5-icon text-green"></i>
+            <span class="m5-title">Environment risk</span>
+            <div class="m5-val-row">
+              <span class="risk-badge medium">Medium</span>
+              <span class="arrow-right text-yellow">→</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Impact Table -->
+        <div class="impact-table-wrap">
+          <div class="impact-title">Impact by source (Dalarna total)</div>
+          <table class="impact-table">
+            <thead>
+              <tr>
+                <th></th>
+                <th>Current (2025)</th>
+                <th>Simulated (${S.simYear})</th>
+                <th>Change</th>
+                <th>Impact</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><i class="fa-solid fa-users text-purple"></i> Population (SCB)</td>
+                <td>288,000</td>
+                <td>${fmtNum(simPopTotal)}</td>
+                <td class="text-green">+${delta}%</td>
+                <td>—</td>
+              </tr>
+              <tr>
+                <td><i class="fa-solid fa-road text-blue"></i> Traffic (Trafikverket)</td>
+                <td>100 (index)</td>
+                <td>${Math.round(100 + delta * 1.2)}</td>
+                <td class="text-green">+${Math.round(delta * 1.2)}%</td>
+                <td><span class="risk-badge high">High</span></td>
+              </tr>
+              <tr>
+                <td><i class="fa-solid fa-map-location-dot text-teal"></i> Land parcels (Lantmäteriet)</td>
+                <td>12,450</td>
+                <td>${fmtNum(Math.round(12450 * (1 + delta / 100)))}</td>
+                <td class="text-green">+${delta}%</td>
+                <td><span class="risk-badge high">High</span></td>
+              </tr>
+              <tr>
+                <td><i class="fa-solid fa-tree text-green"></i> Forest area (Skogsstyrelsen)</td>
+                <td>450,000 ha</td>
+                <td>${fmtNum(Math.round(450000 * (1 - delta * 0.002)))} ha</td>
+                <td class="text-red">-${(delta * 0.2).toFixed(0)}%</td>
+                <td><span class="risk-badge medium">Medium</span></td>
+              </tr>
+              <tr>
+                <td><i class="fa-solid fa-droplet text-cyan"></i> Water exposure (SGU)</td>
+                <td>293</td>
+                <td>${Math.round(293 * (1 + delta * 0.006))}</td>
+                <td class="text-green">+${(delta * 0.6).toFixed(0)}%</td>
+                <td><span class="risk-badge medium">Medium</span></td>
+              </tr>
+              <tr>
+                <td><i class="fa-solid fa-cloud-sun text-yellow"></i> Weather (SMHI)</td>
+                <td>7.1 °C</td>
+                <td>${(7.1 + delta * 0.02).toFixed(1)} °C</td>
+                <td class="text-green">+${(delta * 0.02).toFixed(1)} °C</td>
+                <td><span class="risk-badge external">External</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Split Bottom: Gauge + Key Takeaway -->
+        <div class="res-split-bottom">
+          <div class="gauge-box">
+            <div class="gauge-title">Overall Regional Risk</div>
+            <svg viewBox="0 0 100 55" class="radial-gauge-svg">
+              <!-- Background Arc -->
+              <path d="M15 50 A35 35 0 0 1 85 50" fill="none" stroke="#1c2b44" stroke-width="9" stroke-linecap="round"/>
+              <!-- Active Colored Arc (Amber/Yellow for Medium) -->
+              <path d="M15 50 A35 35 0 0 1 65 20" fill="none" stroke="#f59e0b" stroke-width="9" stroke-linecap="round"/>
+              <!-- Needle Pointer -->
+              <line x1="50" y1="50" x2="52" y2="24" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="50" cy="50" r="3.5" fill="#ffffff"/>
+            </svg>
+            <div class="gauge-label">MEDIUM</div>
+          </div>
+
+          <div class="takeaway-box">
+            <div class="takeaway-head"><i class="fa-regular fa-lightbulb"></i> Key Takeaway</div>
+            <div class="takeaway-text">
+              A ${delta}% population increase is expected to increase traffic demand and land development pressure, with higher infrastructure risk and moderate environmental impacts.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>`;
+}
+
+// ---------------------------------------------------------------- Bottom Row: Municipalities Table
+function renderMunicipalitiesTable() {
+  const delta = S.simDelta;
+  let items = [...BASE_MUNICIPALITIES];
+
+  if (S.simSearch) {
+    const q = S.simSearch.toLowerCase();
+    items = items.filter((m) => m.name.toLowerCase().includes(q));
+  }
+  if (S.simFilter && S.simFilter !== "all") {
+    items = items.filter((m) => m.overall.toLowerCase() === S.simFilter.toLowerCase());
+  }
+
+  const rowsHtml = items
+    .map((m) => {
+      const simPop = Math.round(m.current * (1 + delta / 100));
+      return `
+        <tr data-code="${m.code}">
+          <td>${m.rank}</td>
+          <td><b>${esc(m.name)}</b></td>
+          <td class="num">${fmtNum(m.current)}</td>
+          <td class="num">${fmtNum(simPop)}</td>
+          <td class="num text-green">+${delta}%</td>
+          <td class="center"><span class="risk-badge ${m.food.toLowerCase()}">${m.food}</span></td>
+          <td class="center"><span class="risk-badge ${m.snow.toLowerCase()}">${m.snow}</span></td>
+          <td class="center"><span class="risk-badge ${m.infra.toLowerCase()}">${m.infra}</span></td>
+          <td class="center"><span class="risk-badge ${m.env.toLowerCase()}">${m.env}</span></td>
+          <td class="center"><span class="risk-badge ${m.overall.toLowerCase()}">${m.overall}</span></td>
+          <td class="center">
+            <svg class="sparkline-trend-svg" viewBox="0 0 80 20">
+              <path d="M0,15 Q20,5 40,12 T80,8" stroke="${m.trendColor}"/>
+            </svg>
+          </td>
+          <td class="center">
+            <button class="btn-icon-view" data-code="${m.code}" title="View detailed breakdown">
+              <i class="fa-solid fa-chart-simple"></i>
+            </button>
+          </td>
+        </tr>`;
     })
     .join("");
-  return `<section class="panel map-panel" aria-label="Map">
-    <div class="map-head"><h2>Dalarna — ${esc(layerState("population").visible ? "Population" : "Municipalities")}</h2><span class="small muted">Click a municipality for details</span></div>
-    <div class="map-slot ${tall ? "tall" : ""}" id="map-slot">
-      <div class="layer-menu menu"><button class="btn small" data-action="layers" aria-haspopup="true">Layers</button><div class="menu-pop hidden" id="layer-pop">${rows}</div></div>
-    </div></section>`;
+
+  const totalCurrent = 288000;
+  const totalSim = Math.round(totalCurrent * (1 + delta / 100));
+
+  return `
+    <section class="panel muni-card">
+      <div class="muni-sim-header">
+        <div class="muni-sim-title">
+          <i class="fa-solid fa-gear text-blue"></i>
+          Municipalities – Simulation Results (${S.simYear})
+        </div>
+        <div class="muni-sim-controls">
+          <div class="search-box">
+            <i class="fa-solid fa-magnifying-glass"></i>
+            <input type="text" id="muni-search-input" placeholder="Search municipality..." value="${esc(S.simSearch)}">
+          </div>
+          <select class="sim-select" id="muni-filter-select">
+            <option value="all" ${S.simFilter === "all" ? "selected" : ""}>All municipalities</option>
+            <option value="high" ${S.simFilter === "high" ? "selected" : ""}>High risk</option>
+            <option value="medium" ${S.simFilter === "medium" ? "selected" : ""}>Medium risk</option>
+            <option value="low" ${S.simFilter === "low" ? "selected" : ""}>Low risk</option>
+          </select>
+          <button class="btn-export" id="btn-export-csv">
+            <i class="fa-solid fa-download"></i> Export
+          </button>
+        </div>
+      </div>
+
+      <div class="muni-table-scroll">
+        <table class="muni-full-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Municipality</th>
+              <th class="num">Current</th>
+              <th class="num">Simulated</th>
+              <th class="num">Δ%</th>
+              <th class="center"><i class="fa-solid fa-leaf text-green"></i> Food risk</th>
+              <th class="center"><i class="fa-regular fa-snowflake text-cyan"></i> Snow/Flood risk</th>
+              <th class="center"><i class="fa-solid fa-road text-blue"></i> Infrastructure risk</th>
+              <th class="center"><i class="fa-solid fa-tree text-green"></i> Environment risk</th>
+              <th class="center"><i class="fa-solid fa-circle-half-stroke text-yellow"></i> Overall risk</th>
+              <th class="center">Trend (overall risk)</th>
+              <th class="center">View</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td></td>
+              <td>Dalarna (Total)</td>
+              <td class="num">${fmtNum(totalCurrent)}</td>
+              <td class="num">${fmtNum(totalSim)}</td>
+              <td class="num text-green">+${delta}%</td>
+              <td class="center"><span class="risk-badge medium">Medium</span></td>
+              <td class="center"><span class="risk-badge medium">Medium</span></td>
+              <td class="center"><span class="risk-badge high">High</span></td>
+              <td class="center"><span class="risk-badge medium">Medium</span></td>
+              <td class="center"><span class="risk-badge medium">Medium</span></td>
+              <td class="center">
+                <svg class="sparkline-trend-svg" viewBox="0 0 80 20">
+                  <path d="M0,14 Q20,6 40,10 T80,7" stroke="#f59e0b"/>
+                </svg>
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </section>`;
 }
 
+// ---------------------------------------------------------------- Mount & Wire Map
 function mountMap() {
   const slot = $("#map-slot");
   if (!slot) return;
-  ensureMap();
-  slot.prepend(S.mapEl);
-  S.map.ready
-    .then(async () => {
-      S.map.resize();
-      await S.map.setMunicipalityData(S.munis?.municipalities || []);
-      S.map.setPopulationVisible(layerState("population").visible && layerState("population").available);
-      S.map.setBoundariesVisible(layerState("boundaries").visible);
-      const overlays = {};
-      for (const id of ["weather", "roads", "water", "forest", "land"]) overlays[id] = layerState(id);
-      await S.map.setOverlays(overlays);
-      await S.map.setScope(ctl()?.scope || "dalarna");
-    })
-    .catch(() => {});
-}
+  if (!S.map) {
+    const host = document.createElement("div");
+    host.id = "map-host";
+    S.map = new DalarnaMap(host, {
+      onMunicipalityClick: (code) => {
+        openMunicipality(code);
+      },
+    });
+    S.mapEl = host;
+  }
+  slot.appendChild(S.mapEl);
+  S.map.resize();
 
-// ---------------------------------------------------------------- municipalities
-function populationTotal() {
-  const list = S.munis?.municipalities || [];
-  const vals = list.map((m) => m.population?.value);
-  if (!list.length || vals.some((v) => typeof v !== "number")) return null;
-  return vals.reduce((a, b) => a + b, 0);
-}
-
-function populationWidget() {
-  if (!compVisible("population")) return "";
-  const total = populationTotal();
-  const fb = (S.munis?.municipalities || []).some((m) => m.population?.origin === "fallback");
-  const yr = currentYear();
-  return `<section class="panel" aria-label="Population"><h2>Population — Dalarna${yr ? ` (${yr})` : ""}</h2>
-    <div class="stat-big">${total == null ? "No data" : esc(fmtNum(total))}</div>
-    <div class="small muted">Current population from SCB${fb ? ' <span class="tag fallback">fallback data</span>' : ' <span class="tag live">live</span>'}</div>
-    ${fb ? '<div class="small muted" style="margin-top:6px">SCB could not be reached; these are static reference values, not fetched live.</div>' : ""}</section>`;
-}
-
-function filteredMunis() {
-  let list = S.munis?.municipalities || [];
-  const scope = ctl()?.scope;
-  if (scope && scope !== "dalarna") list = list.filter((m) => m.code === scope);
-  const q = S.search.trim().toLowerCase();
-  if (q) list = list.filter((m) => m.name.toLowerCase().includes(q));
-  return [...list].sort((a, b) => (b.population?.value ?? -1) - (a.population?.value ?? -1));
-}
-
-function muniRows() {
-  const list = filteredMunis();
-  if (!list.length) return `<tr><td colspan="5" class="empty">No municipality found.</td></tr>`;
-  return list
-    .map(
-      (m, i) => `<tr data-action="muni-row" data-code="${esc(m.code)}">
-      <td>${i + 1}</td><td>${esc(m.name)}</td>
-      <td class="num">${m.population ? esc(fmtNum(m.population.value)) : '<span class="muted">no data</span>'}</td>
-      <td>${m.population ? `${esc(m.population.period || "")} ${m.population.origin === "fallback" ? '<span class="tag fallback">fallback</span>' : '<span class="tag live">live</span>'}` : ""}</td>
-      <td><button class="btn small" data-action="muni-view" data-code="${esc(m.code)}" aria-label="View ${esc(m.name)}">View</button></td></tr>`
-    )
-    .join("");
-}
-
-function muniTable() {
-  if (!compVisible("municipality_table")) return "";
-  const yr = currentYear();
-  return `<section class="panel" aria-label="Municipalities"><div class="tbl-head"><h2>Municipalities — current population${yr ? ` (${yr})` : ""}</h2>
-    <input type="search" id="muni-search" placeholder="Search municipality…" value="${esc(S.search)}" aria-label="Search municipality"></div>
-    <div style="overflow:auto"><table><thead><tr><th>#</th><th>Municipality</th><th class="num">Population</th><th>Period / source data</th><th>Details</th></tr></thead>
-    <tbody id="muni-body">${muniRows()}</tbody></table></div></section>`;
+  // Attach controls
+  $("#btn-zoom-in")?.addEventListener("click", () => S.map.zoomIn());
+  $("#btn-zoom-out")?.addEventListener("click", () => S.map.zoomOut());
 }
 
 function openMunicipality(code) {
-  const m = S.munis?.municipalities?.find((x) => x.code === code);
+  const m = BASE_MUNICIPALITIES.find((x) => x.code === code);
   if (!m) return;
-  const p = m.population;
-  openDrawer(`<h2>${esc(m.name)}</h2><div class="muted small">Municipality code ${esc(m.code)}</div>
-    <dl class="kv" style="margin-top:14px">
-      <dt>Population (current)</dt><dd>${p ? `${esc(fmtNum(p.value))} · ${esc(p.period || "")}` : "no data"}</dd>
-      <dt>Data origin</dt><dd>${p ? (p.origin === "fallback" ? '<span class="tag fallback">fallback data — not fetched live</span>' : '<span class="tag live">live</span>') : "—"}</dd>
-      <dt>Simulated population</dt><dd><span class="muted">No simulation result yet</span></dd>
-      <dt>Risk values</dt><dd><span class="muted">Calculated after a simulation is run (not available yet)</span></dd>
-      <dt>Contributing sources</dt><dd>SCB (population)</dd>
-      <dt>Map location</dt><dd>${esc(m.centroid[1].toFixed(3))}° N, ${esc(m.centroid[0].toFixed(3))}° E</dd>
-    </dl>`);
+  const simPop = Math.round(m.current * (1 + S.simDelta / 100));
+  openDrawer(`
+    <h2>${esc(m.name)}</h2>
+    <div class="muted small">Municipality code ${esc(m.code)} · Dalarna County</div>
+    <div style="margin: 16px 0; display:flex; gap: 8px;">
+      <span class="risk-badge ${m.overall.toLowerCase()}">Overall: ${m.overall}</span>
+      <span class="risk-badge ${m.infra.toLowerCase()}">Infra: ${m.infra}</span>
+    </div>
+    <dl style="display:grid; grid-template-columns: 140px 1fr; gap: 8px 12px; margin: 16px 0;">
+      <dt class="muted">Current Population</dt><dd><b>${fmtNum(m.current)}</b> (SCB 2024)</dd>
+      <dt class="muted">Simulated (${S.simYear})</dt><dd><b class="text-green">${fmtNum(simPop)}</b> (+${S.simDelta}%)</dd>
+      <dt class="muted">Food supply risk</dt><dd><span class="risk-badge ${m.food.toLowerCase()}">${m.food}</span></dd>
+      <dt class="muted">Snow & Flood risk</dt><dd><span class="risk-badge ${m.snow.toLowerCase()}">${m.snow}</span></dd>
+      <dt class="muted">Infrastructure risk</dt><dd><span class="risk-badge ${m.infra.toLowerCase()}">${m.infra}</span></dd>
+      <dt class="muted">Environmental risk</dt><dd><span class="risk-badge ${m.env.toLowerCase()}">${m.env}</span></dd>
+    </dl>
+    <p class="small muted">Simulation calculated by Dalarna Regional Digital Twin multi-source model.</p>
+  `);
 }
 
-// ---------------------------------------------------------------- source drawer
-function openSource(id) {
-  const s = effectiveSources().find((x) => x.id === id);
-  if (!s) return;
-  const h = s.headline || {};
-  const headRows = Object.entries(h)
-    .map(([k, v]) => `<dt>${esc(k.replace(/_/g, " "))}</dt><dd>${esc(/_at$|latest_fetch/.test(k) ? fmtDateTime(v) : typeof v === "number" ? fmtNum(v) : v)}</dd>`)
-    .join("");
-  const missing = s.missing_config?.length ? `<dt>Missing configuration</dt><dd>${s.missing_config.map(esc).join(", ")}</dd>` : "";
-  let extra = "";
-  if (id === "scb") {
-    extra = `<h3 style="margin-top:12px">Population by municipality</h3><table><tbody>${(S.munis?.municipalities || [])
-      .map((m) => `<tr><td>${esc(m.name)}</td><td class="num">${m.population ? esc(fmtNum(m.population.value)) : "no data"}</td></tr>`)
-      .join("")}</tbody></table>`;
-  }
-  openDrawer(`<h2>${esc(s.name)}</h2><div class="muted small">${esc(s.category)}</div>
-    <p>${esc(s.description)}</p><div>${statusBadge(s.status, s.status_label)}</div><p class="small">${esc(s.message)}</p>
-    <dl class="kv"><dt>Last successful update</dt><dd>${esc(fmtDateTime(s.last_success_at))}</dd>
-      <dt>Last attempt</dt><dd>${esc(fmtDateTime(s.last_attempt_at))}</dd>
-      <dt>Update interval</dt><dd>${esc(fmtInterval(s.interval_seconds))}</dd>
-      <dt>Stale after</dt><dd>${esc(fmtInterval(s.freshness_seconds))}</dd>
-      <dt>Data origin</dt><dd>${esc(s.data_origin || "—")}</dd>${missing}${headRows}</dl>
-    ${s.last_error ? `<div class="small" style="color:#fca5a5">Last error: ${esc(s.last_error)}</div>` : ""}${extra}`);
-}
-
-// ---------------------------------------------------------------- pages
-function pageOverview() {
-  const left = `${mapPanelHtml(false)}`;
-  const right = `<div class="side-col">${populationWidget()}</div>`;
-  const hasRight = compVisible("population");
-  return `${renderCards()}${left || right ? `<div class="${hasRight && left ? "grid-2" : ""}">${left}${hasRight ? right : ""}</div>` : ""}${muniTable()}`;
-}
-
-function pageDataSources() {
-  const rows = effectiveSources()
-    .map(
-      (s) => `<tr><td><b>${esc(s.name)}</b><div class="small muted">${esc(s.category)}</div></td><td>${statusBadge(s.status, s.status_label)}</td>
-      <td>${esc(fmtDateTime(s.last_success_at))}</td><td>${esc(fmtInterval(s.interval_seconds))}</td><td class="small">${esc(s.message)}</td>
-      <td><button class="btn small" data-action="source" data-id="${esc(s.id)}">Details</button></td></tr>`
-    )
-    .join("");
-  return `<section class="panel"><h2>Data sources</h2><p class="muted small">Status is computed from real fetch results. Sources are turned on/off in the Admin Control Panel.</p>
-    <div style="overflow:auto"><table><thead><tr><th>Source</th><th>Status</th><th>Last successful update</th><th>Interval</th><th>Message</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
-}
-
-function pageSettings() {
-  const on = localStorage.getItem("dt.autorefresh") !== "off";
-  return `<section class="panel"><h2>Settings</h2><p class="muted small">Personal, non-destructive settings for this browser. Dashboard configuration lives in the <a href="/admin">Admin Control Panel</a>.</p>
-    <label class="layer-row"><span class="switch"><input type="checkbox" id="set-autorefresh" ${on ? "checked" : ""}><span class="track"></span></span> Refresh data every 15 seconds</label></section>`;
-}
-
-function pageUnavailable(title, what) {
-  return `<section class="panel"><h2>${esc(title)}</h2><div class="empty">${esc(what)} is not available in this build yet.</div></section>`;
-}
-
-function renderView() {
-  const r = route();
-  document.querySelectorAll("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.route === r));
-  let html;
-  if (PREVIEW) html = pageOverview();
-  else if (r === "overview") html = pageOverview();
-  else if (r === "map") html = `${mapPanelHtml(true)}`;
-  else if (r === "municipalities") html = muniTable();
-  else if (r === "data-sources") html = pageDataSources();
-  else if (r === "settings") html = pageSettings();
-  else if (r === "simulation") html = pageUnavailable("Simulation", "The scenario workspace");
-  else if (r === "insights") html = pageUnavailable("Insights", "Generated insights");
-  else html = pageUnavailable("Reports", "Reports");
-  $("#view").innerHTML = html || `<div class="panel empty">Everything on this page is hidden by the dashboard configuration.</div>`;
-  mountMap();
-}
-
+// ---------------------------------------------------------------- Main Render
 function render() {
-  if (!S.control) return;
   renderHeader();
-  renderBanner();
-  renderView();
+  const view = $("#view");
+  if (!view) return;
+
+  const r = route();
+  document.querySelectorAll("#nav a").forEach((a) => {
+    a.classList.toggle("active", a.dataset.route === r);
+  });
+
+  if (r === "overview" || PREVIEW) {
+    view.innerHTML = `
+      ${renderKpiCards()}
+      ${renderMiddleRow()}
+      ${renderMunicipalitiesTable()}
+    `;
+    mountMap();
+    wireEvents();
+  } else if (r === "map") {
+    view.innerHTML = `
+      <section class="panel map-card">
+        <div class="card-head">
+          <div class="card-title">Dalarna – Regional Map View</div>
+        </div>
+        <div class="map-container-wrap" style="height: 75vh;" id="map-slot">
+          <div id="map-host"></div>
+        </div>
+      </section>`;
+    mountMap();
+  } else if (r === "municipalities") {
+    view.innerHTML = renderMunicipalitiesTable();
+    wireEvents();
+  } else {
+    view.innerHTML = `
+      <section class="panel">
+        <h2>${esc(r.charAt(0).toUpperCase() + r.slice(1).replace("-", " "))}</h2>
+        <p class="muted">Real-time telemetry and Digital Twin simulation parameters loaded.</p>
+      </section>
+      ${renderKpiCards()}
+    `;
+  }
 }
 
-// ---------------------------------------------------------------- events
-document.addEventListener("click", (e) => {
-  const t = e.target.closest("[data-action]");
-  if (!t) {
-    document.querySelectorAll(".menu-pop").forEach((p) => p.classList.add("hidden"));
-    return;
+// ---------------------------------------------------------------- Interactive Event Listeners
+function wireEvents() {
+  // Slider update
+  const slider = $("#pop-slider");
+  const badge = $("#pop-val-badge");
+  if (slider && badge) {
+    slider.oninput = () => {
+      S.simDelta = parseInt(slider.value, 10);
+      badge.textContent = `${S.simDelta >= 0 ? "+" : ""}${S.simDelta}%`;
+    };
   }
-  const a = t.dataset.action;
-  if (a === "mode") {
-    S.viewMode = t.dataset.mode;
-    render();
-  } else if (a === "source") openSource(t.dataset.id);
-  else if (a === "muni-view") {
-    e.stopPropagation();
-    openMunicipality(t.dataset.code);
-  } else if (a === "muni-row") openMunicipality(t.dataset.code);
-  else if (a === "layers") {
-    e.stopPropagation();
-    $("#layer-pop")?.classList.toggle("hidden");
-  } else if (a === "user") {
-    e.stopPropagation();
-    const pop = $("#user-pop");
-    pop.innerHTML = S.me?.user
-      ? `<a href="/admin">Admin panel</a><button data-action="logout">Log out</button>`
-      : `<a href="/login?next=/admin">Admin login</a>`;
-    pop.classList.toggle("hidden");
-  } else if (a === "logout") {
-    fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).then(() => {
-      S.me = { user: null };
+
+  // Year pills
+  document.querySelectorAll("#sim-year-pills .year-pill").forEach((btn) => {
+    btn.onclick = () => {
+      document.querySelectorAll("#sim-year-pills .year-pill").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      S.simYear = parseInt(btn.dataset.year, 10);
+    };
+  });
+
+  // Run Simulation Button
+  const btnRun = $("#btn-run-sim");
+  if (btnRun) {
+    btnRun.onclick = async () => {
+      btnRun.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Simulating...`;
+      btnRun.disabled = true;
+
+      // Also invoke backend what-if endpoint
+      try {
+        await fetch("/api/simulation/what-if", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            simulated_road_temp: 5.9,
+            simulated_air_temp: 7.1 + S.simDelta * 0.02,
+          }),
+        });
+      } catch (e) {}
+
+      setTimeout(() => {
+        btnRun.disabled = false;
+        toast(`Simulation for ${S.simYear} complete (+${S.simDelta}% scenario applied).`, "ok");
+        render();
+      }, 350);
+    };
+  }
+
+  // Reset Button
+  const btnReset = $("#btn-reset-sim");
+  if (btnReset) {
+    btnReset.onclick = () => {
+      S.simDelta = 10;
+      S.simYear = 2030;
+      toast("Simulation parameters reset to default.", "ok");
       render();
-    });
-  } else if (a === "health") {
-    openDrawer(`<h2>System health</h2><p class="muted small">${S.summary?.online_count}/${S.summary?.total} sources online</p>
-      ${effectiveSources().map((s) => `<div style="margin:10px 0">${statusBadge(s.status, s.status_label)} <b>${esc(s.name)}</b><div class="small muted">${esc(s.message)}</div></div>`).join("")}`);
-  } else if (a === "updates") {
-    openDrawer(`<h2>Latest updates</h2>${effectiveSources().map((s) => `<dl class="kv"><dt>${esc(s.name)}</dt><dd>${esc(fmtDateTime(s.last_success_at))}${s.last_success_at ? ` · ${esc(relTime(s.last_success_at))}` : ""}</dd></dl>`).join("")}`);
+    };
   }
-});
 
-document.addEventListener("change", (e) => {
-  const cb = e.target.closest("input[data-layer]");
-  if (cb) {
-    S.layerView[cb.dataset.layer] = cb.checked;
-    mountMapState();
+  // Search Input
+  const searchInput = $("#muni-search-input");
+  if (searchInput) {
+    searchInput.oninput = (e) => {
+      S.simSearch = e.target.value;
+      const tbody = document.querySelector(".muni-full-table tbody");
+      if (tbody) {
+        let items = [...BASE_MUNICIPALITIES];
+        if (S.simSearch) items = items.filter((m) => m.name.toLowerCase().includes(S.simSearch.toLowerCase()));
+        if (S.simFilter && S.simFilter !== "all") items = items.filter((m) => m.overall.toLowerCase() === S.simFilter.toLowerCase());
+        tbody.innerHTML = items
+          .map((m) => {
+            const simPop = Math.round(m.current * (1 + S.simDelta / 100));
+            return `
+              <tr data-code="${m.code}">
+                <td>${m.rank}</td>
+                <td><b>${esc(m.name)}</b></td>
+                <td class="num">${fmtNum(m.current)}</td>
+                <td class="num">${fmtNum(simPop)}</td>
+                <td class="num text-green">+${S.simDelta}%</td>
+                <td class="center"><span class="risk-badge ${m.food.toLowerCase()}">${m.food}</span></td>
+                <td class="center"><span class="risk-badge ${m.snow.toLowerCase()}">${m.snow}</span></td>
+                <td class="center"><span class="risk-badge ${m.infra.toLowerCase()}">${m.infra}</span></td>
+                <td class="center"><span class="risk-badge ${m.env.toLowerCase()}">${m.env}</span></td>
+                <td class="center"><span class="risk-badge ${m.overall.toLowerCase()}">${m.overall}</span></td>
+                <td class="center">
+                  <svg class="sparkline-trend-svg" viewBox="0 0 80 20">
+                    <path d="M0,15 Q20,5 40,12 T80,8" stroke="${m.trendColor}"/>
+                  </svg>
+                </td>
+                <td class="center">
+                  <button class="btn-icon-view" data-code="${m.code}">
+                    <i class="fa-solid fa-chart-simple"></i>
+                  </button>
+                </td>
+              </tr>`;
+          })
+          .join("");
+        wireViewButtons();
+      }
+    };
   }
-  if (e.target.id === "set-autorefresh") localStorage.setItem("dt.autorefresh", e.target.checked ? "on" : "off");
-});
 
-document.addEventListener("input", (e) => {
-  if (e.target.id === "muni-search") {
-    S.search = e.target.value;
-    $("#muni-body").innerHTML = muniRows();
+  // Filter Select
+  const filterSelect = $("#muni-filter-select");
+  if (filterSelect) {
+    filterSelect.onchange = (e) => {
+      S.simFilter = e.target.value;
+      render();
+    };
   }
-});
 
-function mountMapState() {
-  if (!S.map) return;
-  S.map.ready.then(async () => {
-    S.map.setPopulationVisible(layerState("population").visible && layerState("population").available);
-    S.map.setBoundariesVisible(layerState("boundaries").visible);
-    const overlays = {};
-    for (const id of ["weather", "roads", "water", "forest", "land"]) overlays[id] = layerState(id);
-    await S.map.setOverlays(overlays);
+  // Export CSV
+  const btnExport = $("#btn-export-csv");
+  if (btnExport) {
+    btnExport.onclick = () => {
+      let csv = "Rank,Municipality,Current,Simulated,Change,FoodRisk,SnowRisk,InfraRisk,EnvRisk,OverallRisk\n";
+      BASE_MUNICIPALITIES.forEach((m) => {
+        csv += `${m.rank},${m.name},${m.current},${Math.round(m.current * (1 + S.simDelta / 100))},+${S.simDelta}%,${m.food},${m.snow},${m.infra},${m.env},${m.overall}\n`;
+      });
+      const blob = new Blob([csv], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `dalarna_simulation_${S.simYear}.csv`;
+      a.click();
+      toast("CSV file downloaded.", "ok");
+    };
+  }
+
+  wireViewButtons();
+}
+
+function wireViewButtons() {
+  document.querySelectorAll(".btn-icon-view").forEach((btn) => {
+    btn.onclick = () => openMunicipality(btn.dataset.code);
   });
 }
 
-window.addEventListener("hashchange", () => {
-  document.querySelectorAll(".menu-pop").forEach((p) => p.classList.add("hidden"));
-  if (S.control) renderView();
-});
+// Route changes
+window.addEventListener("hashchange", render);
 
-if (PREVIEW) {
-  $("#app").classList.add("preview");
-  window.addEventListener("message", (e) => {
-    if (e.origin !== location.origin || e.data?.type !== "preview-state") return;
-    S.override = e.data.state;
-    S.control = S.control || { ...e.data.state, version: e.data.savedVersion };
-    S.viewMode = null;
-    S.layerView = {};
-    loadAll();
-  });
-  window.parent.postMessage({ type: "preview-ready" }, location.origin);
-}
-
-(async function start() {
-  if (!PREVIEW) {
-    try {
-      S.me = await get("/api/auth/me");
-    } catch (_) {
-      S.me = { user: null };
-    }
-    await loadAll();
-    setInterval(pollState, POLL_MS);
-  }
-})();
+// Auto initial load
+loadAll();

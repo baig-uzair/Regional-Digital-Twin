@@ -7,6 +7,18 @@ from __future__ import annotations
 
 import os
 import secrets
+from pathlib import Path
+
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+if ENV_PATH.exists():
+    try:
+        for line in ENV_PATH.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line and not line.startswith("#") and "=" in line:
+                k, v = line.split("=", 1)
+                os.environ[k.strip()] = v.strip()
+    except Exception:
+        pass
 
 PLACEHOLDERS = {"", "votre_cle_ici", "your_key_here", "changeme"}
 
@@ -24,7 +36,7 @@ def db_params() -> dict:
         "dbname": _env("POSTGRES_DB", "dalarna_dt"),
         "user": _env("POSTGRES_USER", "postgres"),
         "password": _env("POSTGRES_PASSWORD"),
-        "connect_timeout": 5,
+        "connect_timeout": int(_env("POSTGRES_CONNECT_TIMEOUT", "1")),
     }
 
 

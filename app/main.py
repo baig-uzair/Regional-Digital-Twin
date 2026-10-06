@@ -17,6 +17,7 @@ from app.routers import auth as auth_router
 from app.routers import control as control_router
 from app.routers import data as data_router
 from app.routers import system as system_router
+from app.routers import telemetry as telemetry_router
 from app.scheduler import scheduler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
@@ -111,6 +112,7 @@ app.include_router(auth_router.router)
 app.include_router(control_router.router)
 app.include_router(data_router.router)
 app.include_router(system_router.router)
+app.include_router(telemetry_router.router)
 
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
@@ -130,9 +132,11 @@ async def login_page():
     return FileResponse(STATIC_DIR / "login.html", headers={"Cache-Control": "no-store"})
 
 
-@app.get("/admin.html", include_in_schema=False)
-async def admin_html_redirect():
-    return RedirectResponse("/admin", status_code=308)
+@app.get("/cockpit", include_in_schema=False)
+@app.get("/cockpit.html", include_in_schema=False)
+async def cockpit_page():
+    root_index = Path(__file__).resolve().parent.parent / "index.html"
+    return FileResponse(root_index, headers={"Cache-Control": "no-store"})
 
 
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

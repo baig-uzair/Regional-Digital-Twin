@@ -3,32 +3,154 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Admin Control — Dalarna Digital Twin</title>
+  <title>Dashboard Control — Dalarna Digital Twin</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="/css/app.css">
   <link rel="stylesheet" href="/css/admin.css">
 </head>
-<body>
-  <div class="admin-top">
-    <h1>Dalarna Digital Twin · Admin Control</h1>
-    <div class="links">
-      <a href="/" target="_blank" rel="noopener">View Live Dashboard ↗</a>
-      <a id="grafana-link" href="#" target="_blank" rel="noopener">View in Grafana ↗</a>
-      <span class="muted" id="whoami"></span>
-      <button class="btn small" id="logout">Log out</button>
+<body class="grafana-theme">
+  <!-- Top Global Bar -->
+  <header class="grafana-topbar">
+    <div class="topbar-left">
+      <!-- Grafana Orange Swirl Icon -->
+      <div class="grafana-logo-wrap">
+        <svg viewBox="0 0 40 40" class="grafana-logo-svg">
+          <circle cx="20" cy="20" r="18" fill="#f97316"/>
+          <path d="M12 20 A8 8 0 0 1 28 20 A4 4 0 0 1 20 20" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="20" cy="20" r="2.5" fill="#ffffff"/>
+        </svg>
+        <span class="grafana-brand-name">Grafana</span>
+      </div>
+      <div class="topbar-divider"></div>
+      <span class="topbar-app-title">Dalarna Digital Twin</span>
+      <span class="badge-status online ml-2"><span class="dot-online"></span> Dashboard configured</span>
     </div>
+
+    <div class="topbar-right">
+      <a href="/" target="_blank" rel="noopener" class="topbar-link">
+        <i class="fa-regular fa-eye"></i> View Live Dashboard <i class="fa-solid fa-arrow-up-right-from-square small"></i>
+      </a>
+      <div class="admin-user-pill">
+        <div class="admin-avatar">A</div>
+        <span>Admin <i class="fa-solid fa-chevron-down small"></i></span>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container with Sidebar + Main Content -->
+  <div class="admin-app-layout">
+    <!-- Left Navigation Sidebar -->
+    <nav class="admin-sidebar" aria-label="Admin Navigation">
+      <div class="admin-nav-group">
+        <a href="#overview" class="admin-nav-item">
+          <i class="fa-solid fa-house"></i>
+          <span>Overview</span>
+        </a>
+        <a href="#control" class="admin-nav-item active">
+          <i class="fa-solid fa-table-columns"></i>
+          <span>Dashboard Control</span>
+        </a>
+        <a href="#datasources" class="admin-nav-item">
+          <i class="fa-solid fa-database"></i>
+          <span>Data Sources</span>
+        </a>
+        <a href="#scenarios" class="admin-nav-item">
+          <i class="fa-solid fa-code-branch"></i>
+          <span>Scenarios</span>
+        </a>
+        <a href="#risks" class="admin-nav-item">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Risk Settings</span>
+        </a>
+        <a href="#layers" class="admin-nav-item">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>Map Layers</span>
+        </a>
+        <a href="#appearance" class="admin-nav-item">
+          <i class="fa-solid fa-palette"></i>
+          <span>Appearance</span>
+        </a>
+        <a href="#users" class="admin-nav-item">
+          <i class="fa-solid fa-users"></i>
+          <span>Users & Access</span>
+        </a>
+        <a href="#system" class="admin-nav-item">
+          <i class="fa-solid fa-gear"></i>
+          <span>System</span>
+        </a>
+      </div>
+
+      <div class="admin-sidebar-bottom">
+        <a href="/" class="admin-nav-item back-link">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Back to Grafana</span>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="admin-main-viewport">
+      <!-- Title Header -->
+      <div class="admin-page-header">
+        <h1>Dashboard Control</h1>
+        <p class="admin-page-sub">Easily manage data sources, scenarios, map layers and visual elements for the Dalarna Digital Twin.</p>
+      </div>
+
+      <!-- Horizontal Tabs -->
+      <div class="admin-tabs-row" id="admin-tabs" role="tablist">
+        <button class="admin-tab-btn active" data-tab="datasources">
+          <i class="fa-solid fa-database"></i> Data Sources
+        </button>
+        <button class="admin-tab-btn" data-tab="scenarios">
+          <i class="fa-solid fa-play"></i> Simulation Scenarios
+        </button>
+        <button class="admin-tab-btn" data-tab="risks">
+          <i class="fa-solid fa-shield-halved"></i> Risk Settings
+        </button>
+        <button class="admin-tab-btn" data-tab="map">
+          <i class="fa-solid fa-map"></i> Map & Regions
+        </button>
+        <button class="admin-tab-btn" data-tab="visual">
+          <i class="fa-solid fa-palette"></i> Visual Settings
+        </button>
+        <button class="admin-tab-btn" data-tab="users">
+          <i class="fa-solid fa-users"></i> Users
+        </button>
+      </div>
+
+      <!-- Tab Content Area -->
+      <div class="admin-tab-content" id="admin-tab-content">
+        <!-- Rendered by admin.js -->
+      </div>
+    </main>
   </div>
-  <div id="globalbar" role="toolbar" aria-label="Global actions"></div>
-  <div class="admin-layout">
-    <section>
-      <div class="tabs" id="tabs" role="tablist"></div>
-      <div id="tab" role="tabpanel"></div>
-    </section>
-    <aside class="panel preview-panel" aria-label="Live preview">
-      <div class="ph"><div><b>Live Preview</b><div class="small muted">The real Main Interface, showing your unsaved changes</div></div></div>
-      <iframe id="preview" src="/?preview=1" title="Main Interface preview"></iframe>
-    </aside>
-  </div>
+
+  <!-- Bottom Sticky Save Bar -->
+  <footer class="admin-save-bar" id="admin-save-bar">
+    <div class="save-bar-left">
+      <div class="save-icon-circle">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <div class="save-bar-text">
+        <b>Save Changes</b>
+        <span>Your changes will be applied to the main dashboard.</span>
+      </div>
+    </div>
+    <div class="save-bar-right">
+      <button class="btn-save-apply" id="btn-save-apply">
+        <i class="fa-solid fa-floppy-disk"></i> Save & Apply
+      </button>
+      <button class="btn-reset-default" id="btn-reset-default">
+        <i class="fa-solid fa-rotate-right"></i> Reset to Default
+      </button>
+    </div>
+  </footer>
+
+  <div id="toasts"></div>
   <script type="module" src="/js/admin.js"></script>
 </body>
 </html>

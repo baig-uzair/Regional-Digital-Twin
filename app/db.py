@@ -22,11 +22,21 @@ _pool: psycopg2.pool.ThreadedConnectionPool | None = None
 _pool_lock = threading.Lock()
 
 
+_last_failed_connect = 0.0
+
+
 def _get_pool() -> psycopg2.pool.ThreadedConnectionPool:
-    global _pool
+    global _pool, _last_failed_connect
     with _pool_lock:
         if _pool is None:
-            _pool = psycopg2.pool.ThreadedConnectionPool(1, 12, **config.db_params())
+            now = time.monotonic()
+            if now - _last_failed_connect < 10.0:
+                raise psycopg2.OperationalError("Database recently unreachable (retry cooldown)")
+            try:
+                _pool = psycopg2.pool.ThreadedConnectionPool(1, 12, **config.db_params())
+            except Exception:
+                _last_failed_connect = now
+                raise
         return _pool
 
 
@@ -42,15 +52,18 @@ def reset_pool() -> None:
 @contextmanager
 def transaction():
     pool = _get_pool()
-    conn = pool.getconn()
+    conn = None
     try:
+        conn = pool.getconn()
         yield conn
         conn.commit()
     except Exception:
-        conn.rollback()
+        if conn is not None:
+            conn.rollback()
         raise
     finally:
-        pool.putconn(conn)
+        if conn is not None:
+            pool.putconn(conn)
 
 
 @contextmanager

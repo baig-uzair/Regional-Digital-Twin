@@ -28,23 +28,21 @@ TIMEOUT = 20
 DOC_URL = "https://www2.lantmateriet.se/sv/nationella-geodataplattformen/arkitektur/teknisk-beskrivning-av-ngp/"
 
 
-def _get_config() -> tuple[str, str, str]:
+def _get_config() -> tuple[str, str, Optional[str]]:
     base_url = os.environ.get("LANTMATERIET_BASE_URL", "").strip().rstrip("/")
     collection = os.environ.get("LANTMATERIET_COLLECTION", "").strip()
     api_key = os.environ.get("LANTMATERIET_API_KEY", "").strip()
 
-    if not api_key:
-        raise ConnectorSkipped("Lantmateriet: LANTMATERIET_API_KEY not set, skipping")
     if not base_url or not collection:
         raise ConnectorSkipped(
             "Lantmateriet: LANTMATERIET_BASE_URL/LANTMATERIET_COLLECTION not set "
             "(register a product at apimanager.lantmateriet.se first), skipping"
         )
-    return base_url, collection, api_key
+    return base_url, collection, api_key or None
 
 
 def fetch_records(bbox, limit: int = 200) -> list[NormalizedRecord]:
-    base_url, collection, api_key = _get_config()  # raises ConnectorSkipped -> "Not configured"
+    base_url, collection, api_key = _get_config()
 
     url = f"{base_url}/collections/{collection}/items"
     params = {
@@ -52,13 +50,17 @@ def fetch_records(bbox, limit: int = 200) -> list[NormalizedRecord]:
         "f": "application/json",
         "limit": limit,
     }
-    headers = {"Ocp-Apim-Subscription-Key": api_key}
+    headers = {}
+    if api_key:
+        headers["Ocp-Apim-Subscription-Key"] = api_key
     try:
         resp = requests.get(url, params=params, headers=headers, timeout=TIMEOUT)
     except requests.RequestException as exc:
         raise ConnectorError(f"Lantmateriet: request failed: {exc}")
     if resp.status_code != 200:
-        raise ConnectorError(f"Lantmateriet: HTTP {resp.status_code} from {url} - {resp.text[:200]}")
+        if resp.status_code in (401, 403):
+            raise ConnectorSkipped(f"Lantmateriet: API key required or forbidden (HTTP {resp.status_code})")
+        raise ConnectorError(f"Lantmateriet: HTTP {resp.status_code} - {resp.text[:200]}")
 
     try:
         payload = resp.json()

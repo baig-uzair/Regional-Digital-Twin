@@ -1,0 +1,48 @@
+{
+  "model_version": "1.2.0",
+  "name": "Dalarna Cross-Sector Causal Dependency Model",
+  "description": "Propagates demographic, infrastructural and environmental driver variations across Dalarna's 15 municipalities.",
+  "dependencies": {
+    "population_growth": {
+      "driver_source": "SCB",
+      "coefficients": {
+        "traffic_demand": 1.2,
+        "infrastructure_pressure": 0.85,
+        "land_development": 1.0,
+        "forest_reduction": -0.20,
+        "water_exposure": 0.60,
+        "weather_effect": 0.0
+      },
+      "weights": {
+        "population": 0.25,
+        "food_risk": 0.20,
+        "snow_flood_risk": 0.20,
+        "infrastructure_risk": 0.20,
+        "environment_risk": 0.15
+      }
+    }
+  },
+  "default_thresholds": {
+    "low": 0.30,
+    "medium": 0.60,
+    "high": 0.80,
+    "critical": 1.00
+  },
+  "municipalities_baseline": {
+    "2081": { "name": "Borlänge", "base_pop": 51399, "base_infra_risk": 0.65, "base_food_risk": 0.42, "base_flood_risk": 0.28, "base_env_risk": 0.45 },
+    "2080": { "name": "Falun", "base_pop": 59016, "base_infra_risk": 0.62, "base_food_risk": 0.28, "base_flood_risk": 0.48, "base_env_risk": 0.40 },
+    "2062": { "name": "Mora", "base_pop": 21928, "base_infra_risk": 0.48, "base_food_risk": 0.45, "base_flood_risk": 0.52, "base_env_risk": 0.25 },
+    "2085": { "name": "Ludvika", "base_pop": 26389, "base_infra_risk": 0.52, "base_food_risk": 0.50, "base_flood_risk": 0.68, "base_env_risk": 0.48 },
+    "2084": { "name": "Avesta", "base_pop": 23105, "base_infra_risk": 0.50, "base_food_risk": 0.65, "base_flood_risk": 0.44, "base_env_risk": 0.42 },
+    "2029": { "name": "Leksand", "base_pop": 15950, "base_infra_risk": 0.45, "base_food_risk": 0.38, "base_flood_risk": 0.46, "base_env_risk": 0.35 },
+    "2083": { "name": "Hedemora", "base_pop": 15300, "base_infra_risk": 0.44, "base_food_risk": 0.42, "base_flood_risk": 0.40, "base_env_risk": 0.38 },
+    "2082": { "name": "Säter", "base_pop": 11200, "base_infra_risk": 0.42, "base_food_risk": 0.35, "base_flood_risk": 0.38, "base_env_risk": 0.32 },
+    "2031": { "name": "Rättvik", "base_pop": 11000, "base_infra_risk": 0.43, "base_food_risk": 0.40, "base_flood_risk": 0.45, "base_env_risk": 0.30 },
+    "2061": { "name": "Smedjebacken", "base_pop": 10900, "base_infra_risk": 0.45, "base_food_risk": 0.44, "base_flood_risk": 0.50, "base_env_risk": 0.36 },
+    "2026": { "name": "Gagnef", "base_pop": 10400, "base_infra_risk": 0.38, "base_food_risk": 0.36, "base_flood_risk": 0.42, "base_env_risk": 0.28 },
+    "2023": { "name": "Malung-Sälen", "base_pop": 10200, "base_infra_risk": 0.40, "base_food_risk": 0.46, "base_flood_risk": 0.54, "base_env_risk": 0.24 },
+    "2039": { "name": "Älvdalen", "base_pop": 7000, "base_infra_risk": 0.35, "base_food_risk": 0.38, "base_flood_risk": 0.48, "base_env_risk": 0.20 },
+    "2034": { "name": "Orsa", "base_pop": 6900, "base_infra_risk": 0.34, "base_food_risk": 0.35, "base_flood_risk": 0.42, "base_env_risk": 0.22 },
+    "2021": { "name": "Vansbro", "base_pop": 6700, "base_infra_risk": 0.36, "base_food_risk": 0.39, "base_flood_risk": 0.40, "base_env_risk": 0.25 }
+  }
+}
