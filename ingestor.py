@@ -1,3 +1,4 @@
+import os
 import requests
 import psycopg2
 from datetime import datetime, timezone
@@ -7,11 +8,11 @@ import threading
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 
 # --- CONFIGURATION RÉSEAU DOCKER ---
-DB_HOST = "timescaledb"
+DB_HOST = os.environ.get("POSTGRES_HOST", "timescaledb")
 DB_PORT = 5432
-DB_NAME = "dalarna_dt"
-DB_USER = "postgres"
-DB_PASS = "DalarnaTwin2026!"
+DB_NAME = os.environ.get("POSTGRES_DB", "dalarna_dt")
+DB_USER = os.environ.get("POSTGRES_USER", "postgres")
+DB_PASS = os.environ["POSTGRES_PASSWORD"]  # from .env, never hard-coded
 ORION_URL = "http://orion:1026/ngsi-ld/v1/entities"
 
 # Identifiants NGSI-LD & Coordonnées Réelles (Dalarna)

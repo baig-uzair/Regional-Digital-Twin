@@ -18,7 +18,7 @@ désactivée), `SESSION_SECRET` (conseillé) et `PUBLIC_SIMULATION`.
 - Interface principale : http://localhost:8000 (`#/overview`, `#/map`, `#/municipalities`, `#/data-sources`…)
 - Panneau d'administration : http://localhost:8000/admin (connexion `ADMIN_USERNAME` / `ADMIN_PASSWORD`)
 - API : http://localhost:8000/api/... (ex. `/api/control/state`, `/api/datasources/summary`)
-- Tableau de bord Grafana : http://localhost:3000 (identifiants: admin / admin)
+- Tableau de bord Grafana : http://localhost:3000 (utilisateur `admin`, mot de passe = `GRAFANA_ADMIN_PASSWORD` dans `.env`)
 
 ## 4. Nouvelles sources nationales (Lantmäteriet, SCB, Skogsstyrelsen, SGU)
 

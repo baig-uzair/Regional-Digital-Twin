@@ -95,7 +95,7 @@ Evidence path legend: main.js, admin.js, map.js, api.js = static/js/*; control.p
 | R-2.1 | Both | Pending vs saved; Save & Apply only commit; Reset discards; Cancel closes | PARTIAL | admin.js:6-8,256,299; control.py:164-211 | Pending only in browser; add server draft + Cancel; Preview never receives pending | P1 |
 | R-2.2 | Both | Never delete history on disable | DONE | control.py:203-209; no DELETE/TRUNCATE anywhere; tests/test_control_api.py:102 | Keep (datasource_store.py:42-48 upsert overwrites same-key rows: low risk) | P3 |
 | R-2.3 | Both | Dynamic source registry, not hard-coded in frontend | VIOLATES RULE | admin.js:19-26,41; main.js:118-266,359-391; routers/control.py:64-71; jobs.py:106-113 | Render from /api/datasources/summary; generic connector for new sources | P0 |
-| R-2.4 | Both | Secrets server-side only (JS/Grafana/git) | VIOLATES RULE | Frontend+Grafana JSON clean; .env.example:3, docker-compose.yml:62, ingestor.py:13 commit password 'DalarnaTwin2026!'; README.md:21 | Rotate, remove from tracked files/history, add secret-scan test | P0 |
+| R-2.4 | Both | Secrets server-side only (JS/Grafana/git) | VIOLATES RULE | Frontend+Grafana JSON clean; .env.example:3, docker-compose.yml:62, ingestor.py:13 commit password (a real-looking password); README.md:21 | Rotate, remove from tracked files/history, add secret-scan test | P0 |
 | R-2.5 | Both | Live/Simulation never mix; simulated labelled; sim never overwrites live | VIOLATES RULE | main.js:271-272,475-506 client fake sim; municipalities.py:47-63 fallback tagged 'live'; sources.py:125-241 invented stats | Backend engine writes only simulation_runs; remove fabricated fallbacks; label simulated | P0 |
 | R-2.6 | Both | Dependency-based simulation; SMHI external | VIOLATES RULE | main.js:475-506 flat multipliers incl. SMHI temp (:503); no backend engine | Implement dependency chain engine | P0 |
 | R-2.7 | Both | Risk thresholds backend config, not JS | VIOLATES RULE | map.js:5-22,86-104; main.js:34-50,524; schemas.py:40-51 (no /api/risk/config) | Add /api/risk/config, server-side classification | P0 |
@@ -296,7 +296,7 @@ Open rows by priority: P0: 66, P1: 72, P2: 31, P3: 2
 1. Main Dashboard is a static mock-up: numbers, risk labels and map colours are hard-coded and would be presented as real data (R-2.5, X-1).
 2. No simulation engine or API; client flat-% maths violates the dependency rule and even changes SMHI weather (R-2.6, A-7.x).
 3. Risk thresholds hard-coded in JS; no `/api/risk/config` (R-2.7).
-4. Credentials committed: `DalarnaTwin2026!` in `.env.example`, `docker-compose.yml`, `ingestor.py`; anonymous Grafana with HTML sanitising off (R-2.4, A-17.2).
+4. Credentials committed: a real-looking password in `.env.example`, `docker-compose.yml`, `ingestor.py`; anonymous Grafana with HTML sanitising off (R-2.4, A-17.2).
 5. Save & Apply claims success on failure, and the backend silently "saves" to memory when the DB is down (A-4.3, X-1).
 6. Fabricated fallbacks return "Online", 288,000 residents, 87 stations, population tagged `live` when data is unavailable (X-1).
 7. Preview is inert; five of six admin tabs render the wrong page; most buttons dead (A-L.1, A-3.x, R-2.10).
@@ -320,6 +320,6 @@ Open rows by priority: P0: 66, P1: 72, P2: 31, P3: 2
 
 1. **Admin UI vs real Grafana (X-5).** `/admin` is a custom page styled like Grafana. I propose keeping it as the control room (it must call the FastAPI API), rename the branding, and link Grafana from the System tab. OK?
 2. **Mode toggle (conflict #2).** The Main toggle is already client-only and never calls `/api/control/mode`, so the code matches your resolution. No conflict to flag.
-3. **Leaked password.** Removing `DalarnaTwin2026!` from tracked files is easy; rewriting git history is destructive, so I will not do it without your go-ahead. Rotate it anywhere it is deployed.
+3. **Leaked password.** Removing a real-looking password from tracked files is easy; rewriting git history is destructive, so I will not do it without your go-ahead. Rotate it anywhere it is deployed.
 4. **Docker.** Not running here, so DB tests skip. Please start Docker Desktop (or give me another Postgres/Timescale) so the full suite can run.
 5. **Threshold schema.** Plan: 4-band lower bounds (0.00/0.30/0.60/0.80), existing 3-key `risk_thresholds` kept as a read-compatible alias. Confirm.

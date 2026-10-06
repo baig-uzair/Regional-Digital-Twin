@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Control Room — Dalarna Digital Twin</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="/css/app.css">
+  <link rel="stylesheet" href="/css/ui.css">
+  <link rel="stylesheet" href="/css/control-room.css">
+</head>
+<body class="cr">
+  <header class="cr-top">
+    <div class="cr-brand"><i class="fa-solid fa-sliders"></i> <b>Control Room</b> <span class="muted">Dalarna Digital Twin</span></div>
+    <div class="cr-top-right">
+      <span class="cr-chip" id="cr-saved" title="Version currently live on the Main Dashboard">Loading…</span>
+      <button class="cr-chip dirty hidden" id="cr-dirty" data-act="show-diff" title="Unsaved changes (only visible in Preview)"></button>
+      <a class="btn small" href="/" target="_blank" rel="noopener"><i class="fa-regular fa-eye"></i> Open Main Dashboard</a>
+      <button class="btn small" data-act="logout" id="cr-user" title="Sign out"><i class="fa-regular fa-user"></i> <span>Admin</span></button>
+    </div>
+  </header>
+
+  <section class="cr-actions" aria-label="Global actions">
+    <div class="seg-mode" role="group" aria-label="Dashboard mode (pending)">
+      <button class="seg-btn" data-act="set-mode" data-mode="live" id="cr-live">Live</button>
+      <button class="seg-btn" data-act="set-mode" data-mode="simulation" id="cr-sim">Simulation</button>
+    </div>
+    <div class="cr-actions-right">
+      <button class="btn" data-act="refresh-preview" id="cr-refresh-preview"><i class="fa-solid fa-rotate"></i> Refresh Preview</button>
+      <button class="btn" data-act="reset" id="cr-reset"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+      <button class="btn" data-act="cancel" id="cr-cancel">Cancel</button>
+      <button class="btn primary" data-act="apply" id="cr-apply"><i class="fa-solid fa-floppy-disk"></i> Save &amp; Apply</button>
+    </div>
+  </section>
+
+  <nav class="cr-tabs" id="cr-tabs" role="tablist" aria-label="Control Room sections"></nav>
+
+  <main class="cr-main">
+    <section class="cr-left" id="cr-content" tabindex="-1" aria-live="polite"></section>
+    <aside class="cr-right">
+      <div class="panel cr-preview">
+        <div class="cr-preview-head">
+          <div><h2><span class="dot-live"></span> Preview</h2><div class="muted small">The real Main Dashboard in compact form. Shows your <b>unsaved</b> changes; nothing is live until Save &amp; Apply.</div></div>
+        </div>
+        <iframe id="preview-frame" src="/?preview=1" title="Main Dashboard preview"></iframe>
+      </div>
+    </aside>
+  </main>
+
+  <div id="toasts" role="status" aria-live="polite"></div>
+  <script type="module" src="/js/control-room.js"></script>
+</body>
+</html>
