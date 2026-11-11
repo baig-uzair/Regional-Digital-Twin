@@ -16,6 +16,8 @@ from app import auth, config, control, db
 from app.routers import auth as auth_router
 from app.routers import control as control_router
 from app.routers import data as data_router
+from app.routers import risk as risk_router
+from app.routers import simulation as simulation_router
 from app.routers import system as system_router
 from app.routers import telemetry as telemetry_router
 from app.scheduler import scheduler
@@ -111,8 +113,15 @@ async def security_headers(request: Request, call_next):
 app.include_router(auth_router.router)
 app.include_router(control_router.router)
 app.include_router(data_router.router)
+app.include_router(risk_router.router)
+app.include_router(simulation_router.router)
 app.include_router(system_router.router)
 app.include_router(telemetry_router.router)
+
+
+@app.get("/api/export")
+def export_endpoint(format: str = "json"):
+    return system_router.generate_export_data(format)
 
 
 @app.api_route("/api/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"], include_in_schema=False)
@@ -120,10 +129,15 @@ async def api_not_found(path: str):
     raise HTTPException(status_code=404, detail=f"No such endpoint: /api/{path}")
 
 
+ADMIN_MODULES = {"overview", "control", "datasources", "scenarios", "risks", "layers", "appearance", "system"}
+
+
 @app.get("/admin", include_in_schema=False)
-async def admin_page(request: Request):
+@app.get("/admin/{module}", include_in_schema=False)
+async def admin_page(request: Request, module: str = "overview"):
     if not auth.current_user(request):
-        return RedirectResponse("/login?next=/admin", status_code=303)
+        next_url = f"/admin/{module}" if module != "overview" else "/admin"
+        return RedirectResponse(f"/login?next={next_url}", status_code=303)
     return FileResponse(STATIC_DIR / "admin.html", headers={"Cache-Control": "no-store"})
 
 

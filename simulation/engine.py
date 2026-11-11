@@ -54,6 +54,7 @@ def run_simulation(
     driver: Optional[dict[str, Any]] = None,
     excluded_sources: Optional[list[str]] = None,
     thresholds: Optional[dict[str, float]] = None,
+    weights: Optional[dict[str, float]] = None,
     is_test: bool = False,
 ) -> dict[str, Any]:
     """Execute dependency-based simulation scenario across Dalarna and its 15 municipalities."""
@@ -61,6 +62,13 @@ def run_simulation(
     model_version = cfg.get("model_version", "1.2.0")
     excluded = set(excluded_sources or [])
     th = thresholds or cfg.get("default_thresholds", {"low": 0.30, "medium": 0.60, "high": 0.80, "critical": 1.00})
+    w = weights or {"infrastructure": 0.30, "food": 0.25, "snow_flood": 0.25, "environment": 0.20}
+    w_infra = float(w.get("infrastructure", 0.30))
+    w_food = float(w.get("food", 0.25))
+    w_flood = float(w.get("snow_flood", 0.25))
+    w_env = float(w.get("environment", 0.20))
+    sum_w = w_infra + w_food + w_flood + w_env
+    total_w = sum_w if sum_w > 0 else 1.0
 
     driver_data = driver or {"population_change": 0.10}
     pop_change = float(driver_data.get("population_change", 0.10))
@@ -107,8 +115,8 @@ def run_simulation(
         base_env = float(m.get("base_env_risk", 0.35))
         env_score = min(1.0, max(0.0, base_env + abs(forest_pct) * 0.40))
 
-        # Overall risk: weighted combination
-        overall_score = round(0.30 * infra_score + 0.25 * food_score + 0.25 * flood_score + 0.20 * env_score, 3)
+        # Overall risk: dynamically weighted combination based on control configuration
+        overall_score = round((w_infra * infra_score + w_food * food_score + w_flood * flood_score + w_env * env_score) / total_w, 3)
 
         mun_results.append({
             "code": code,
@@ -243,3 +251,18 @@ def run_simulation(
             "note": "SMHI treated as external boundary condition. Zero database overwriting.",
         },
     }
+
+
+_LATEST_SIMULATION_RESULT: Optional[dict[str, Any]] = None
+
+
+def get_latest_simulation() -> Optional[dict[str, Any]]:
+    global _LATEST_SIMULATION_RESULT
+    if _LATEST_SIMULATION_RESULT is None:
+        _LATEST_SIMULATION_RESULT = run_simulation()
+    return _LATEST_SIMULATION_RESULT
+
+
+def set_latest_simulation(result: dict[str, Any]) -> None:
+    global _LATEST_SIMULATION_RESULT
+    _LATEST_SIMULATION_RESULT = result

@@ -5,7 +5,7 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app import auth, control
 from simulation.engine import classify_risk
@@ -20,6 +20,21 @@ class RiskConfigUpdate(BaseModel):
     medium: float = Field(default=0.60, gt=0.0, lt=1.0)
     high: float = Field(default=0.80, gt=0.0, lt=1.0)
     critical: float = Field(default=1.00, gt=0.0, le=1.0)
+    thresholds: Optional[dict[str, float]] = None
+    weights: Optional[dict[str, float]] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _extract_nested(cls, data):
+        if isinstance(data, dict):
+            th = data.get("thresholds")
+            if isinstance(th, dict):
+                merged = {**data}
+                for k in ("low", "medium", "high", "critical"):
+                    if k in th:
+                        merged[k] = th[k]
+                return merged
+        return data
 
 
 class CalculateRiskRequest(BaseModel):
@@ -53,8 +68,19 @@ def update_risk_config(body: RiskConfigUpdate, user: str = Depends(auth.require_
             "high": body.high,
             "critical": body.critical,
         }
+        if body.weights:
+            state["weights"] = body.weights
 
-    return control.patch_state(mutate, user, "risk.config_update")
+    res = control.patch_state(mutate, user, "risk.config_update")
+    th = res.get("risk_thresholds", {})
+    weights = res.get("weights", {})
+    return {
+        "status": "ok",
+        "thresholds": th,
+        "risk_thresholds": th,
+        "weights": weights,
+        "state": res,
+    }
 
 
 @router.post("/calculate")

@@ -61,17 +61,57 @@ def _throttled(ip: str) -> bool:
 
 
 def check_login(ip: str, username: str, password: str) -> bool:
-    """Constant-time credential check with a small per-IP failure throttle."""
-    cfg_user, cfg_pass = config.admin_credentials()
-    if not cfg_user or not cfg_pass:
-        raise HTTPException(status_code=503, detail="Admin login is not configured (set ADMIN_USERNAME and ADMIN_PASSWORD)")
+    """Check credentials against database admin_users table, with fallback to config."""
     if _throttled(ip):
         raise HTTPException(status_code=429, detail="Too many failed attempts. Try again in a few minutes.")
-    ok_user = hmac.compare_digest(username.encode(), cfg_user.encode())
-    ok_pass = hmac.compare_digest(password.encode(), cfg_pass.encode())
-    if ok_user and ok_pass:
-        _failures.pop(ip, None)
-        return True
+
+    # 1. First, check database admin_users table
+    try:
+        from app import db
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT id, username, password_hash, is_active FROM admin_users WHERE username = %s LIMIT 1",
+                (username,)
+            )
+            user_row = cur.fetchone()
+            if user_row:
+                if not user_row.get("is_active", True):
+                    logger.warning("Attempted login for inactive user %s from %s", username, ip)
+                    return False
+                stored_hash = user_row.get("password_hash") or ""
+                # Check plain or hash
+                is_match = False
+                if stored_hash.startswith("pbkdf2:") or stored_hash.startswith("$2b$") or stored_hash.startswith("sha256:"):
+                    import hashlib
+                    # If sha256 formatted: sha256:<salt>:<hex> or simple sha256
+                    if stored_hash.startswith("sha256:"):
+                        parts = stored_hash.split(":")
+                        if len(parts) == 3:
+                            test_hex = hashlib.sha256((parts[1] + password).encode()).hexdigest()
+                            is_match = hmac.compare_digest(parts[2], test_hex)
+                        else:
+                            test_hex = hashlib.sha256(password.encode()).hexdigest()
+                            is_match = hmac.compare_digest(parts[1], test_hex)
+                else:
+                    # Direct comparison for plain / standard admin password
+                    is_match = hmac.compare_digest(password.encode(), stored_hash.encode())
+
+                if is_match:
+                    _failures.pop(ip, None)
+                    cur.execute("UPDATE admin_users SET last_login = NOW() WHERE id = %s", (user_row["id"],))
+                    return True
+    except Exception as exc:
+        logger.warning("Database user query failed, falling back to config: %s", exc)
+
+    # 2. Fallback to .env config if not in database
+    cfg_user, cfg_pass = config.admin_credentials()
+    if cfg_user and cfg_pass:
+        ok_user = hmac.compare_digest(username.encode(), cfg_user.encode())
+        ok_pass = hmac.compare_digest(password.encode(), cfg_pass.encode())
+        if ok_user and ok_pass:
+            _failures.pop(ip, None)
+            return True
+
     _failures.setdefault(ip, []).append(time.monotonic())
     logger.warning("failed admin login from %s", ip)
     return False

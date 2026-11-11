@@ -44,6 +44,13 @@ class RiskThresholds(Strict):
     medium: float = 0.60
     high: float = 0.80
 
+    @model_validator(mode="before")
+    @classmethod
+    def _strip_critical(cls, data):
+        if isinstance(data, dict):
+            return {k: v for k, v in data.items() if k != "critical"}
+        return data
+
     @model_validator(mode="after")
     def _ordered(self):
         if not (0.0 < self.low < self.medium < self.high < 1.0):
@@ -59,6 +66,15 @@ class ControlState(Strict):
     layers: Layers = Field(default_factory=Layers)
     components: Components = Field(default_factory=Components)
     risk_thresholds: RiskThresholds = Field(default_factory=RiskThresholds)
+    weights: dict[str, float] = Field(
+        default_factory=lambda: {
+            "population": 0.25,
+            "food": 0.20,
+            "snow_flood": 0.20,
+            "infrastructure": 0.20,
+            "environment": 0.15,
+        }
+    )
     active_scenario: Optional[str] = None
     simulation_year: Optional[int] = Field(default=None, ge=2000, le=2100)
 
@@ -102,6 +118,40 @@ class MapLayerRequest(Strict):
     base_version: Optional[int] = Field(default=None, ge=1)
 
 
+class ScopeRequest(Strict):
+    scope: str
+    base_version: Optional[int] = Field(default=None, ge=1)
+
+
+class ComponentToggleRequest(Strict):
+    component: str
+    visible: bool
+    base_version: Optional[int] = Field(default=None, ge=1)
+
+
 class LoginRequest(Strict):
     username: str = Field(max_length=100)
     password: str = Field(max_length=200)
+
+
+class SourceActionRequest(Strict):
+    source: str = Field(min_length=1, max_length=64)
+
+
+class RegisterSourceRequest(Strict):
+    id: str = Field(min_length=2, max_length=64)
+    name: str = Field(min_length=2, max_length=100)
+    category: str = Field(default="General", max_length=100)
+    description: str = Field(default="")
+    base_url: Optional[str] = None
+    auth_type: str = Field(default="none")
+    auth_env_vars: list[str] = Field(default_factory=list)
+    interval_seconds: int = Field(default=900, ge=60)
+    freshness_seconds: int = Field(default=7200, ge=60)
+    map_layer: Optional[str] = None
+    enabled: bool = True
+
+
+class ImportConfigRequest(Strict):
+    config: dict = Field(default_factory=dict)
+    state: Optional[dict] = None

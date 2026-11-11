@@ -141,11 +141,60 @@ def diff(old: dict, new: dict, prefix: str = "") -> list[str]:
     return changed
 
 
+_MEMORY_AUDIT_LOG: list[dict] = []
+
+
 def audit(cur, user: str, action: str, summary: dict, result: str) -> None:
-    cur.execute(
-        "INSERT INTO audit_log (username, action, summary, result) VALUES (%s, %s, %s, %s)",
-        (user, action, psycopg2.extras.Json(summary), result),
-    )
+    entry = {
+        "id": len(_MEMORY_AUDIT_LOG) + 1,
+        "username": user,
+        "action": action,
+        "summary": summary,
+        "result": result,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+    }
+    _MEMORY_AUDIT_LOG.insert(0, entry)
+    if len(_MEMORY_AUDIT_LOG) > 200:
+        _MEMORY_AUDIT_LOG.pop()
+    if cur is not None:
+        cur.execute(
+            "INSERT INTO audit_log (username, action, summary, result) VALUES (%s, %s, %s, %s)",
+            (user, action, psycopg2.extras.Json(summary), result),
+        )
+
+
+def audit_action(user: str, action: str, summary: dict, result: str = "ok") -> None:
+    try:
+        with db.cursor() as cur:
+            audit(cur, user, action, summary, result)
+    except Exception:
+        audit(None, user, action, summary, result)
+
+
+def get_audit_log(limit: int = 50) -> list[dict]:
+    try:
+        with db.cursor() as cur:
+            cur.execute(
+                "SELECT id, username, action, summary, result, created_at "
+                "FROM audit_log ORDER BY id DESC LIMIT %s",
+                (limit,),
+            )
+            rows = cur.fetchall()
+            if rows:
+                return [
+                    {
+                        "id": r["id"],
+                        "username": r["username"],
+                        "action": r["action"],
+                        "summary": r["summary"],
+                        "result": r["result"],
+                        "timestamp": r["created_at"].isoformat() if hasattr(r["created_at"], "isoformat") else str(r["created_at"]),
+                    }
+                    for r in rows
+                ]
+    except Exception:
+        pass
+    return list(_MEMORY_AUDIT_LOG[:limit])
 
 
 def log_failure(user: str, action: str, summary: dict, result: str) -> None:
@@ -153,7 +202,8 @@ def log_failure(user: str, action: str, summary: dict, result: str) -> None:
         with db.cursor() as cur:
             audit(cur, user, action, summary, result)
     except Exception:  # noqa: BLE001 - auditing must never mask the original error
-        logger.exception("could not write audit log")
+        audit(None, user, action, summary, result)
+        logger.exception("could not write audit log to database")
 
 
 def _validate_sources(state: ControlState, registry_ids: set[str]) -> None:
@@ -209,7 +259,7 @@ def apply_state(
                 )
             audit(cur, user, action, {"changed": changed, "version": row["version"]}, "ok")
         return {**_row_to_live(row), "changed": changed, "unchanged": False}
-    except VersionConflict:
+    except (VersionConflict, ValidationProblem):
         raise
     except Exception as exc:
         logger.warning("Database unavailable in apply_state (%s); persisting to memory state", exc)

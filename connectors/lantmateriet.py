@@ -33,12 +33,12 @@ def _get_config() -> tuple[str, str, Optional[str]]:
     collection = os.environ.get("LANTMATERIET_COLLECTION", "").strip()
     api_key = os.environ.get("LANTMATERIET_API_KEY", "").strip()
 
-    if not base_url or not collection:
+    if not base_url or not collection or not api_key:
         raise ConnectorSkipped(
-            "Lantmateriet: LANTMATERIET_BASE_URL/LANTMATERIET_COLLECTION not set "
+            "Lantmateriet: LANTMATERIET_BASE_URL/LANTMATERIET_COLLECTION/LANTMATERIET_API_KEY not set "
             "(register a product at apimanager.lantmateriet.se first), skipping"
         )
-    return base_url, collection, api_key or None
+    return base_url, collection, api_key
 
 
 def fetch_records(bbox, limit: int = 200) -> list[NormalizedRecord]:

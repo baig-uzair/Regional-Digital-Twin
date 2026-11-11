@@ -627,6 +627,18 @@ header#header {
   align-items: center;
   gap: 4px;
   text-align: center;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+.m5-item:hover {
+  background: #0f1d36;
+  border-color: #38bdf8;
+  transform: translateY(-1px);
+}
+.m5-item.active {
+  background: #0f2445;
+  border-color: #38bdf8;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.25);
 }
 .m5-icon {
   font-size: 14px;
@@ -872,3 +884,323 @@ header#header {
   color: #38bdf8;
   background: rgba(56, 189, 248, 0.1);
 }
+
+/* ==========================================================================
+   Map Observatory Cockpit Layout (Route: #/map)
+   ========================================================================== */
+.map-cockpit-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 14px;
+  align-items: stretch;
+}
+@media (max-width: 1100px) {
+  .map-cockpit-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.map-toolbar-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin-bottom: 12px;
+}
+.map-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.map-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.risk-filter-pills {
+  display: inline-flex;
+  background: #080f1d;
+  border: 1px solid var(--line-subtle);
+  border-radius: 6px;
+  padding: 2px;
+  gap: 2px;
+}
+.risk-filter-pill {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8292a8;
+  border-radius: 4px;
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+.risk-filter-pill:hover { color: #fff; }
+.risk-filter-pill.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+.inspector-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 10px 0;
+}
+.inspector-stat-box {
+  background: #060b14;
+  border: 1px solid var(--line-subtle);
+  border-radius: 6px;
+  padding: 8px;
+}
+.inspector-stat-label {
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.inspector-stat-val {
+  font-size: 15px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.inspector-hazard-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 10px 0;
+}
+.inspector-hazard-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #cbd5e1;
+  background: #060b14;
+  padding: 5px 8px;
+  border-radius: 4px;
+}
+
+/* ==========================================================================
+   Scenario Simulation Studio Layout (Route: #/simulation)
+   ========================================================================== */
+.sim-studio-grid {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 1100px) {
+  .sim-studio-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sim-quick-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.sim-preset-chip {
+  background: #080f1d;
+  border: 1px solid var(--line-subtle);
+  color: #8292a8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sim-preset-chip:hover {
+  background: #111e33;
+  color: #fff;
+}
+.sim-preset-chip.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.sim-hero-banner {
+  background: linear-gradient(135deg, #091326 0%, #0c1a36 100%);
+  border: 1px solid #1e293b;
+  border-radius: var(--radius);
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 190px 1fr 240px;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) {
+  .sim-hero-banner {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sim-impact-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.sim-impact-card {
+  background: #070d1a;
+  border: 1px solid var(--line-subtle);
+  border-radius: 6px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.sim-impact-card:hover {
+  border-color: #38bdf8;
+  background: #0b152b;
+}
+
+.sim-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.sim-history-item {
+  background: #060b14;
+  border: 1px solid var(--line-subtle);
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sim-history-item:hover {
+  background: #0b152b;
+  border-color: #38bdf8;
+}
+
+/* ==========================================================================
+   Municipalities, Data Sources, Insights, Reports, Settings Views
+   ========================================================================== */
+.muni-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.muni-quick-card {
+  background: #070d19;
+  border: 1px solid var(--line-subtle);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.muni-quick-card:hover {
+  background: #0f1c34;
+  border-color: #38bdf8;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(56, 189, 248, 0.15);
+}
+
+.insight-hub-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #070d19;
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid #1e293b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.insight-hub-card:hover {
+  background: #0f1d38;
+  border-color: #38bdf8;
+}
+
+.report-export-card {
+  background: #09101d;
+  border: 1px solid #1e293b;
+  border-radius: var(--radius);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  transition: all 0.15s ease;
+}
+.report-export-card:hover {
+  border-color: #38bdf8;
+  background: #0d1627;
+  transform: translateY(-2px);
+}
+
+.muni-obs-filter-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.muni-obs-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+@media print {
+  #header,
+  #nav,
+  .drawer-overlay,
+  .btn-save-apply,
+  .btn-export,
+  .btn-reset-default,
+  .search-box,
+  .muni-sim-controls,
+  .muni-obs-controls,
+  .report-export-card a,
+  select {
+    display: none !important;
+  }
+  body, #app, #view {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .panel, .muni-card {
+    background: #ffffff !important;
+    border: 1px solid #cccccc !important;
+    color: #000000 !important;
+    box-shadow: none !important;
+  }
+  .muni-full-table th, .muni-full-table td {
+    color: #000000 !important;
+    border-color: #dddddd !important;
+  }
+  .risk-badge {
+    border: 1px solid #999999 !important;
+    color: #000000 !important;
+    background: #f1f5f9 !important;
+  }
+}
+
+

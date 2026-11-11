@@ -89,10 +89,28 @@ def ping() -> bool:
 def apply_schema() -> None:
     for name in SCHEMA_FILES:
         ddl = (DB_DIR / name).read_text(encoding="utf-8-sig")
-        with transaction() as conn:
-            cur = conn.cursor()
-            cur.execute(ddl)
-            cur.close()
+        try:
+            with transaction() as conn:
+                cur = conn.cursor()
+                cur.execute(ddl)
+                cur.close()
+        except psycopg2.errors.FeatureNotSupported:
+            # When running on standard PostgreSQL without PostGIS or TimescaleDB extensions,
+            # strip unsupported extension statements and hypertable calls, and adapt geometry type
+            safe_ddl = ddl
+            for stmt in [
+                "CREATE EXTENSION IF NOT EXISTS postgis;",
+                "CREATE EXTENSION IF NOT EXISTS timescaledb;",
+                "SELECT create_hypertable('regional_telemetry', 'time', if_not_exists => TRUE);",
+                "CREATE INDEX IF NOT EXISTS idx_regional_datasources_geom ON regional_datasources USING GIST (geom);",
+            ]:
+                safe_ddl = safe_ddl.replace(stmt, "-- " + stmt)
+            safe_ddl = safe_ddl.replace("GEOMETRY(Point, 4326)", "TEXT")
+            safe_ddl = safe_ddl.replace("GEOMETRY(Geometry, 4326)", "TEXT")
+            with transaction() as conn:
+                cur = conn.cursor()
+                cur.execute(safe_ddl)
+                cur.close()
         logger.info("schema applied: %s", name)
 
 

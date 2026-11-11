@@ -67,8 +67,6 @@ def all_municipalities() -> list[dict]:
     try:
         with db.cursor() as cur:
             pops = populations(cur)
-            if not pops:
-                pops = _FALLBACK_POPULATIONS
     except Exception:
         pops = _FALLBACK_POPULATIONS
     return [{**m, "population": pops.get(m["code"])} for m in geo.municipalities()]

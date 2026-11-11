@@ -161,3 +161,41 @@ def run_source(source_id: str, connector_key: str, trigger: str = "schedule") ->
         return res
     finally:
         lock.release()
+
+
+def test_source_connection(source_id: str) -> dict:
+    """Test connector live API without writing to data tables."""
+    started = time.time()
+    try:
+        if source_id == "smhi":
+            obs = smhi.fetch_observation()
+            dur = int((time.time() - started) * 1000)
+            return {"source": source_id, "status": "ok", "latency_ms": dur, "response_time_ms": dur, "record_count": 1, "message": f"Connected to SMHI. Observation at Borlänge flygplats: {obs.temperature} C"}
+        elif source_id == "trafikverket":
+            recs = trafikverket.fetch_records(DALARNA_BBOX)
+            dur = int((time.time() - started) * 1000)
+            return {"source": source_id, "status": "ok", "latency_ms": dur, "response_time_ms": dur, "record_count": len(recs), "message": f"Connected to Trafikverket. Fetched {len(recs)} weather stations."}
+        elif source_id == "scb":
+            recs = scb.fetch_records()
+            dur = int((time.time() - started) * 1000)
+            return {"source": source_id, "status": "ok", "latency_ms": dur, "response_time_ms": dur, "record_count": len(recs), "message": f"Connected to SCB. Fetched {len(recs)} municipality records."}
+        elif source_id == "sgu":
+            recs = sgu.fetch_records(DALARNA_BBOX)
+            dur = int((time.time() - started) * 1000)
+            return {"source": source_id, "status": "ok", "latency_ms": dur, "response_time_ms": dur, "record_count": len(recs), "message": f"Connected to SGU. Fetched {len(recs)} groundwater bodies."}
+        elif source_id == "skogsstyrelsen":
+            recs = skogsstyrelsen.fetch_records()
+            dur = int((time.time() - started) * 1000)
+            return {"source": source_id, "status": "ok", "latency_ms": dur, "response_time_ms": dur, "record_count": len(recs), "message": f"Connected to Skogsstyrelsen. Fetched {len(recs)} forest stands."}
+        elif source_id == "lantmateriet":
+            recs = lantmateriet.fetch_records(DALARNA_BBOX)
+            dur = int((time.time() - started) * 1000)
+            return {"source": source_id, "status": "ok", "latency_ms": dur, "response_time_ms": dur, "record_count": len(recs), "message": f"Connected to Lantmateriet. Fetched {len(recs)} items."}
+        else:
+            return {"source": source_id, "status": "error", "latency_ms": 0, "response_time_ms": 0, "record_count": 0, "message": f"Unknown source '{source_id}'"}
+    except ConnectorSkipped as exc:
+        dur = int((time.time() - started) * 1000)
+        return {"source": source_id, "status": "skipped", "latency_ms": dur, "response_time_ms": dur, "record_count": 0, "message": str(exc)}
+    except Exception as exc:
+        dur = int((time.time() - started) * 1000)
+        return {"source": source_id, "status": "error", "latency_ms": dur, "response_time_ms": dur, "record_count": 0, "message": str(exc)}

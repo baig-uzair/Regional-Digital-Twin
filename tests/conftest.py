@@ -27,12 +27,14 @@ os.environ["APP_BOOTSTRAP"] = "0"
 os.environ["SCHEDULER_ENABLED"] = "false"
 os.environ["ADMIN_USERNAME"] = "tester"
 os.environ["ADMIN_PASSWORD"] = "test-password-123"
+from app import config, db  # noqa: E402
+
+os.environ["ADMIN_USERNAME"] = "tester"
+os.environ["ADMIN_PASSWORD"] = "test-password-123"
 os.environ["SESSION_SECRET"] = "test-secret"
 for var in ("TRAFIKVERKET_API_KEY", "LANTMATERIET_API_KEY", "LANTMATERIET_BASE_URL", "LANTMATERIET_COLLECTION",
             "SKOGSSTYRELSEN_CLIENT_ID", "SKOGSSTYRELSEN_CLIENT_SECRET"):
     os.environ.pop(var, None)
-
-from app import config, db  # noqa: E402
 
 
 def _server_params(dbname: str) -> dict:

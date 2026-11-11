@@ -62,6 +62,22 @@ CREATE TABLE IF NOT EXISTS control_state (
     note       TEXT
 );
 
+-- Admin users table for database-driven authentication
+CREATE TABLE IF NOT EXISTS admin_users (
+    id            SERIAL PRIMARY KEY,
+    username      VARCHAR(64) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name     VARCHAR(128),
+    role          VARCHAR(32) DEFAULT 'admin',
+    is_active     BOOLEAN DEFAULT TRUE,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_login    TIMESTAMPTZ
+);
+
+INSERT INTO admin_users (username, password_hash, full_name, role, is_active)
+VALUES ('admin', 'admin', 'System Administrator', 'admin', TRUE)
+ON CONFLICT (username) DO NOTHING;
+
 CREATE TABLE IF NOT EXISTS audit_log (
     id       BIGSERIAL PRIMARY KEY,
     ts       TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -95,13 +111,36 @@ CREATE TABLE IF NOT EXISTS scenarios (
     target_year      INTEGER,
     scope            TEXT NOT NULL DEFAULT 'dalarna',
     affected_sources JSONB NOT NULL DEFAULT '[]'::jsonb,
+    description      TEXT NOT NULL DEFAULT '',
     created_by       TEXT NOT NULL DEFAULT 'system',
     created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS scope TEXT NOT NULL DEFAULT 'dalarna';
+ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS affected_sources JSONB NOT NULL DEFAULT '[]'::jsonb;
+ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT '';
+ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS created_by TEXT NOT NULL DEFAULT 'system';
+ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now();
+ALTER TABLE scenarios ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now();
+
+INSERT INTO scenarios (id, name, driver_source, driver, target_year, scope, affected_sources, description, created_by)
+VALUES 
+    ('population_growth', 'Population Growth (+10% by 2030)', 'SCB', '{"population_change": 0.10}'::jsonb, 2030, 'dalarna', '["scb", "trafikverket", "sgu", "skogsstyrelsen", "lantmateriet"]'::jsonb, 'Baseline regional demographic growth across 15 municipalities.', 'system'),
+    ('rapid_urbanization', 'Rapid Urbanization (+18% by 2035)', 'SCB', '{"population_change": 0.18}'::jsonb, 2035, 'dalarna', '["scb", "trafikverket", "lantmateriet"]'::jsonb, 'Concentrated expansion in Borlänge, Falun, and regional corridors.', 'system'),
+    ('climate_freeze_thaw', 'Severe Winter Freeze-Thaw', 'Trafikverket', '{"road_temp_delta": -3.5, "freeze_cycles": 14}'::jsonb, 2026, 'dalarna', '["trafikverket", "smhi", "sgu"]'::jsonb, 'Infrastructure stress and black-ice risk on high-traffic routes (E16).', 'system')
+ON CONFLICT (id) DO UPDATE SET 
+    name = EXCLUDED.name,
+    driver_source = EXCLUDED.driver_source,
+    driver = EXCLUDED.driver,
+    target_year = EXCLUDED.target_year,
+    scope = EXCLUDED.scope,
+    affected_sources = EXCLUDED.affected_sources,
+    description = EXCLUDED.description;
+
+
 CREATE TABLE IF NOT EXISTS simulation_runs (
-    run_id        UUID PRIMARY KEY,
+    run_id        TEXT PRIMARY KEY,
     scenario_id   TEXT REFERENCES scenarios (id),
     is_test       BOOLEAN NOT NULL DEFAULT FALSE,
     input         JSONB NOT NULL,
@@ -109,4 +148,5 @@ CREATE TABLE IF NOT EXISTS simulation_runs (
     model_version TEXT NOT NULL,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE simulation_runs ALTER COLUMN run_id TYPE TEXT;
 CREATE INDEX IF NOT EXISTS idx_simulation_runs_created ON simulation_runs (created_at DESC);

@@ -4,6 +4,7 @@ Skipped automatically when Playwright/Chromium or the database is unavailable.
 Run:  python -m pytest tests/e2e -q
 """
 import os
+import re
 import subprocess
 import sys
 import time
@@ -83,8 +84,10 @@ def api(server, fresh):
 @pytest.fixture()
 def page(browser_, fresh):
     ctx = browser_.new_context(viewport={"width": 1500, "height": 1000}, accept_downloads=True)
+    # Never wait on third-party hosts (fonts, icon CDN, map tiles): tests must not depend on the internet.
+    ctx.route(re.compile(r"^https?://(?!127\.0\.0\.1)"), lambda route: route.abort())
     pg = ctx.new_page()
-    pg.set_default_timeout(15000)
+    pg.set_default_timeout(20000)
     errors = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.errors = errors

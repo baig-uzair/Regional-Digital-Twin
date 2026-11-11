@@ -1,436 +1,185 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dalarna Digital Twin - Monitoring & Simulation</title>
-    
-    <!-- MapLibre GL -->
-    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-
-    <style>
-        * { box-sizing: border-box; }
-        body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        }
-
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-
-        /* Volet latéral de commande */
-        .dashboard-panel {
-            position: absolute;
-            top: 15px;
-            right: 15px;
-            width: 400px;
-            max-height: calc(100vh - 30px);
-            background: rgba(255, 255, 255, 0.96);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-            padding: 16px;
-            z-index: 1000;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        /* Commutateur de Mode (Toggle) */
-        .mode-switch {
-            display: flex;
-            background: #e2e8f0;
-            border-radius: 8px;
-            padding: 3px;
-            gap: 3px;
-        }
-        .mode-btn {
-            flex: 1;
-            padding: 8px 4px;
-            border: none;
-            border-radius: 6px;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            background: transparent;
-            color: #64748b;
-        }
-        .mode-btn.active {
-            background: #ffffff;
-            color: #0f172a;
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Cartes des capteurs */
-        .telemetry-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        .telemetry-card {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 10px;
-            text-align: center;
-        }
-        .telemetry-card .label {
-            font-size: 10px;
-            color: #64748b;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-        .telemetry-card .val {
-            font-size: 18px;
-            font-weight: 700;
-            color: #0f172a;
-            margin-top: 4px;
-        }
-
-        /* Module de Risque / Décision */
-        .risk-banner {
-            padding: 10px 12px;
-            border-radius: 8px;
-            color: white;
-            font-size: 12px;
-            font-weight: 600;
-            text-align: center;
-            transition: background 0.3s ease;
-        }
-        .risk-details {
-            font-size: 11px;
-            color: #475569;
-            background: #f1f5f9;
-            border-radius: 6px;
-            padding: 8px;
-            line-height: 1.4;
-        }
-
-        /* Contrôles du Simulateur */
-        .sim-controls {
-            display: none;
-            background: #fff7ed;
-            border: 1px solid #fed7aa;
-            border-radius: 8px;
-            padding: 12px;
-            gap: 10px;
-            flex-direction: column;
-        }
-        .sim-controls.visible {
-            display: flex;
-        }
-
-        .slider-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 11px;
-            font-weight: 600;
-            color: #9a3412;
-            margin-bottom: 3px;
-        }
-        input[type=range] {
-            width: 100%;
-            cursor: pointer;
-        }
-
-        .btn-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-            margin-top: 4px;
-        }
-        .btn-sim {
-            padding: 6px 4px;
-            font-size: 10px;
-            font-weight: 600;
-            border: 1px solid #fdba74;
-            background: #ffffff;
-            border-radius: 6px;
-            cursor: pointer;
-            color: #7c2d12;
-            transition: background 0.15s ease;
-        }
-        .btn-sim:hover {
-            background: #ffedd5;
-        }
-
-        /* Cadre Grafana */
-        .grafana-container {
-            width: 100%;
-            height: 180px;
-            border-radius: 8px;
-            overflow: hidden;
-            border: 1px solid #e2e8f0;
-            background: #181b1f;
-        }
-        iframe {
-            width: 100%;
-            height: 100%;
-            border: none;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Region Dalarna Digital Twin</title>
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet">
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<style>
+:root{--bg:#070b14;--panel:#0c1321;--panel2:#101a2b;--line:#202d42;--muted:#8b9bb4;--text:#edf4ff;--blue:#2879ff;--purple:#8957ff;--green:#18c985;--amber:#ffbd42;--red:#ff5265}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;background:var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}body{overflow:hidden;font-size:12px}
+button,input,select{font:inherit}button{cursor:pointer}
+.app{height:100vh;display:grid;grid-template-rows:54px 78px minmax(0,1fr);background:var(--bg)}
+.topbar{display:flex;align-items:center;gap:20px;padding:0 16px;border-bottom:1px solid #1c2637;background:#080d17;min-width:0}
+.brand{display:flex;align-items:center;gap:10px;min-width:295px}.brand-mark{height:34px;width:34px;border:1px solid #344764;border-radius:9px;display:grid;place-items:center;background:#111d31;font-size:20px}.brand h1{font-size:13px;line-height:1.1;margin:0;font-weight:750}.brand p{margin:4px 0 0;color:#8191ab;font-size:9px}
+.navmode{display:flex;gap:4px;padding:4px;background:#101827;border-radius:9px}.navmode button{border:0;background:transparent;color:#8494ae;padding:8px 12px;border-radius:6px;font-size:11px;font-weight:650}.navmode button.active{background:#292052;color:#c8b8ff;box-shadow:inset 0 0 0 1px #59439a}
+.top-status{margin-left:auto;display:flex;align-items:center;gap:8px;white-space:nowrap}.metric-pill,.status-pill,.top-action{border:1px solid #1e2b40;background:#0c1422;border-radius:8px;padding:7px 10px;display:flex;align-items:center;gap:8px}.metric-pill .metric-name{font-size:8px;color:#8494ae;display:block}.metric-pill strong{font-size:12px}.status-pill{color:#29d68c;font-size:9px;font-weight:800;letter-spacing:.04em}.top-action{color:#9aabc3;font-size:10px}
+.source-strip{padding:8px 12px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;border-bottom:1px solid #1a2638;background:#090f1a;min-width:0}
+.source-card{border:1px solid #1d2a3d;border-radius:9px;padding:8px 9px;background:#0b1220;min-width:0;overflow:hidden}.source-head{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:750;white-space:nowrap}.source-icon{width:21px;height:21px;border-radius:6px;display:grid;place-items:center;font-size:12px;background:#272052}.source-head .live{margin-left:auto;color:#31dc9a;background:#0e3028;padding:3px 5px;border-radius:4px;font-size:8px}.source-value{font-size:11px;color:#dce7f8;margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.source-value b{color:#f5f8ff}.source-meta{display:flex;justify-content:space-between;gap:6px;margin-top:4px;color:#71829c;font-size:8px;white-space:nowrap;overflow:hidden}
+.workspace{display:grid;grid-template-columns:minmax(0,1fr) 500px;min-height:0;position:relative}.map-area{position:relative;min-width:0;min-height:0;background:#0a1723}.map-title{position:absolute;z-index:3;top:14px;left:14px;background:rgba(7,13,24,.91);border:1px solid #27364b;border-radius:9px;padding:11px 13px;box-shadow:0 6px 20px #0006}.map-title strong{font-size:11px;letter-spacing:.02em}.map-title small{display:block;color:#8193ad;font-size:9px;margin-top:5px}.map-tools{position:absolute;z-index:3;top:14px;right:14px;display:flex;gap:4px;padding:4px;border:1px solid #29364b;background:#0a1220ed;border-radius:9px}.map-tools button{background:transparent;color:#a5b4cb;border:0;border-radius:6px;padding:7px 10px;font-size:10px}.map-tools button.active{background:#286cff;color:white}.zoom-tools{position:absolute;right:14px;top:65px;z-index:3;display:grid;gap:5px}.zoom-tools button{background:#101a2b;border:1px solid #304057;color:#f0f5ff;border-radius:6px;width:31px;height:29px;font-weight:700}.legend{position:absolute;bottom:15px;left:50%;transform:translateX(-50%);z-index:3;display:flex;gap:12px;align-items:center;padding:9px 13px;border-radius:9px;border:1px solid #26364d;background:#0a1220ed;white-space:nowrap;font-size:10px}.legend-label{font-size:8px;color:#8596b0;font-weight:800;letter-spacing:.06em}.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}.map-note{position:absolute;bottom:14px;left:14px;z-index:3;background:#0b1422d9;color:#8da0ba;border:1px solid #26364b;padding:8px 10px;border-radius:7px;font-size:9px}
+#map{position:absolute;inset:0}.maplibregl-ctrl-attrib{font-size:8px!important}.maplibregl-ctrl-group{background:#111b2b!important}.maplibregl-ctrl-group button{filter:invert(.9)}
+.side-panel{min-width:0;min-height:0;display:flex;flex-direction:column;background:#0a101c;border-left:1px solid #202c3f}.side-tabs{height:46px;flex-shrink:0;display:flex;align-items:stretch;border-bottom:1px solid #202b3d}.side-tabs button{flex:1;border:0;border-bottom:2px solid transparent;background:transparent;color:#7f91ac;font-size:11px;font-weight:700}.side-tabs button.active{color:#4dbbff;border-bottom-color:#278bff}
+.panel-scroll{overflow:auto;min-height:0;padding:10px;display:flex;flex-direction:column;gap:8px}.intro{padding:3px 2px 6px}.intro h2{font-size:13px;margin:0 0 5px}.intro p{margin:0;color:#8494ad;font-size:10px;line-height:1.45}.reset{float:right;border:1px solid #2b3950;border-radius:6px;background:#121d2d;color:#9aabc3;padding:5px 7px;font-size:9px}
+.control-card{border:1px solid #202e43;background:#0c1524;border-radius:9px;padding:10px 11px}.control-top{display:flex;align-items:center;gap:8px}.control-icon{width:23px;height:23px;border-radius:6px;display:grid;place-items:center;font-size:14px}.control-title{font-size:10px;font-weight:750}.control-sub{font-size:8px;color:#8091aa;margin-top:3px}.control-row{display:grid;grid-template-columns:1fr minmax(100px,1.1fr) 53px 47px;align-items:center;gap:7px;margin-top:8px}.control-label{font-size:9px;color:#9aabc2}.control-row input[type=range]{width:100%;accent-color:#438bff}.value-badge{font-size:9px;font-weight:800;text-align:center;padding:4px 5px;border:1px solid #514080;background:#251c42;color:#d4c5ff;border-radius:5px;white-space:nowrap}.nudge{display:flex;gap:3px}.nudge button{background:#141e2e;border:1px solid #2a3950;color:#b7c6da;border-radius:4px;width:22px;height:23px;padding:0;font-weight:700}
+.mode-card{border:1px solid #26364e;border-radius:10px;padding:12px;background:#0c1524;margin-top:2px}.mode-card h3{margin:0 0 10px;font-size:11px}.mode-options{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mode-option{display:flex;gap:7px;align-items:flex-start;color:#9aaac1;font-size:9px;line-height:1.4}.mode-option input{accent-color:#4086ff;margin-top:2px}.mode-option b{display:block;color:#e6eefb;font-size:10px;margin-bottom:3px}.run-btn{width:100%;margin-top:12px;padding:12px 10px;border:0;border-radius:9px;background:linear-gradient(110deg,#287cff,#803eff);color:white;font-weight:800;font-size:12px;box-shadow:0 5px 18px #2b5ff044}.run-btn:disabled{opacity:.65;cursor:wait}.run-btn small{display:block;font-weight:500;font-size:9px;opacity:.85;margin-top:3px}
+.results{display:none;border:1px solid #2b3a51;background:#0c1524;border-radius:10px;padding:12px}.results.show{display:block}.results h3{margin:0 0 9px;font-size:11px}.result-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}.result-metric{background:#111e30;border:1px solid #24334a;border-radius:7px;padding:9px}.result-metric span{display:block;color:#8da0ba;font-size:9px}.result-metric strong{display:block;margin-top:5px;font-size:16px}.result-message{color:#a6b5ca;font-size:10px;line-height:1.5;margin-top:9px}.assumption{font-size:9px;color:#7d8da6;margin-top:8px;line-height:1.45}
+.status-line{color:#8192ab;font-size:9px;min-height:13px}.status-line.error{color:#ff8e9a}.status-line.ok{color:#4be0a2}
+.municipality-list{display:grid;grid-template-columns:1fr 1fr;gap:6px}.muni{background:#111c2d;border:1px solid #26364c;color:#dce7f7;border-radius:7px;padding:9px;text-align:left;font-size:10px}.muni:hover{border-color:#4b8cff}.source-list{display:grid;gap:7px}.source-detail{display:flex;justify-content:space-between;align-items:center;padding:10px;border:1px solid #233148;border-radius:8px;background:#101a2a}.source-detail span{color:#8ea0b9;font-size:10px}.source-detail b{font-size:10px}
+@media(max-width:1100px){.workspace{grid-template-columns:minmax(0,1fr) 420px}.brand{min-width:230px}.top-status .metric-pill:nth-child(2){display:none}.source-meta{display:none}.source-card{padding:7px}}
+@media(max-width:760px){body{overflow:auto}.app{height:auto;min-height:100vh;display:block}.topbar{height:auto;min-height:58px;flex-wrap:wrap;padding:10px;gap:10px}.brand{min-width:0;flex:1}.navmode{order:3;width:100%}.navmode button{flex:1}.top-status{gap:4px}.top-status .metric-pill,.top-status .top-action,.top-status .status-pill{display:none}.source-strip{grid-template-columns:repeat(2,minmax(0,1fr));}.workspace{display:flex;flex-direction:column}.map-area{height:48vh;min-height:320px}.side-panel{min-height:650px;border-left:0;border-top:1px solid #26354a}.control-row{grid-template-columns:1fr minmax(80px,1.1fr) 53px 47px}.legend{left:10px;transform:none;gap:7px;font-size:9px}.map-title{max-width:calc(100% - 90px)}}
+</style>
 </head>
 <body>
-
-    <div id="map"></div>
-
-    <div class="dashboard-panel">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
-            <h2 style="font-size: 15px; margin: 0; color: #0f172a;">🏛️ Dalarna Digital Twin</h2>
-            <span id="live-indicator" style="font-size: 10px; font-weight: 700; color: #16a34a;">● EN DIRECT</span>
-        </div>
-
-        <!-- 1. COMMUTATEUR DE MODE -->
-        <div class="mode-switch">
-            <button id="btn-mode-live" class="mode-btn active" onclick="setMode('LIVE')">🟢 Données Réelles</button>
-            <button id="btn-mode-sim" class="mode-btn" onclick="setMode('SIM')">🔮 Simulateur (What-If)</button>
-        </div>
-
-        <!-- 2. RELEVÉS DE TÉLÉMÉTRIE -->
-        <div class="telemetry-grid">
-            <div class="telemetry-card">
-                <div class="label">SMHI Borlänge (Air)</div>
-                <div id="air-temp-display" class="val">-- °C</div>
-            </div>
-            <div class="telemetry-card">
-                <div class="label">Trafikverket E16 (Sol)</div>
-                <div id="road-temp-display" class="val">-- °C</div>
-            </div>
-        </div>
-
-        <!-- 3. ÉTAT DU RISQUE & DÉCISION -->
-        <div id="risk-banner" class="risk-banner" style="background-color: #64748b;">
-            Évaluation en cours...
-        </div>
-        <div id="risk-details" class="risk-details"></div>
-
-        <!-- 4. VOLET DE CONTRÔLE DU SIMULATEUR -->
-        <div id="sim-panel" class="sim-controls">
-            <span style="font-size: 11px; font-weight: 700; color: #9a3412;">🛠️ Scénarios de Crise & What-If</span>
-            
-            <div>
-                <div class="slider-row">
-                    <span>Température Chaussée Simulée :</span>
-                    <span id="slider-val-road">0.0 °C</span>
-                </div>
-                <input type="range" id="sim-road-slider" min="-15" max="25" value="0" step="0.5" oninput="applySimSlider()">
-            </div>
-
-            <div class="btn-row">
-                <button class="btn-sim" onclick="loadScenario(-2.0, 2.0)">⚠️ Verglas Noir (-2°C / +2°C)</button>
-                <button class="btn-sim" onclick="loadScenario(-8.0, -6.0)">❄️ Nuit Polaire (-8°C / -6°C)</button>
-                <button class="btn-sim" onclick="loadScenario(-1.0, 0.5)">🌧️ Pluie Verglaçante (-1°C / +0.5°C)</button>
-                <button class="btn-sim" onclick="resetSim()">🔄 Réinitialiser</button>
-            </div>
-        </div>
-
-        <!-- 5. GRAPHIQUE HISTORIQUE GRAFANA -->
-        <div class="grafana-container">
-			<iframe 
-				src="http://localhost:3000/d-solo/adb22nf/smhi-and-trafikverket-data-extended?orgId=1&from=now-3h&to=now&timezone=browser&panelId=1" width="450" height="200" frameborder="0">
-			</iframe>
-        </div>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><div class="brand-mark">◎</div><div><h1>Region Dalarna Digital Twin</h1><p>Regional Intelligence &amp; Multi-Hazard Simulation Platform</p></div></div>
+    <div class="navmode"><button id="liveTab" class="active" onclick="setTopMode('live')">〰 Live Telemetry</button><button id="simTab" onclick="setTopMode('simulation')">✧ Simulation Horizon</button></div>
+    <div class="top-status">
+      <div class="metric-pill"><span>🌡</span><div><span class="metric-name">SMHI BORLÄNGE</span><strong id="topAir">-- °C</strong></div></div>
+      <div class="metric-pill"><span>〽</span><div><span class="metric-name">ROAD TEMP</span><strong id="topRoad">-- °C</strong></div></div>
+      <div class="status-pill" id="systemStatus">● OPERATIONAL</div>
+      <button class="top-action" onclick="refreshData()">⟳ Sync</button>
+      <div class="top-action">⛨ Senior Admin</div>
     </div>
-
-    <script>
-        let currentMode = 'LIVE';
-        let liveAirTemp = 19.5;
-        let liveRoadTemp = 18.3;
-
-        // Initialisation Carte MapLibre
-        const map = new maplibregl.Map({
-            container: 'map',
-            style: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json',
-            center: [15.4500, 60.4650],
-            zoom: 10.5
-        });
-
-        // Popups dynamiques avec affichage du nom et de la température
-        const airPopup = new maplibregl.Popup({ offset: 25, closeButton: false });
-        const roadPopup = new maplibregl.Popup({ offset: 25, closeButton: false });
-
-        function updateAirPopup(temp, isSimulated = false) {
-            const tag = isSimulated ? ' (Simulé)' : '';
-            airPopup.setHTML(`
-                <div style="font-size: 11px; line-height: 1.4;">
-                    <b style="color: #0284c7;">Station SMHI</b><br>
-                    <span>Borlänge Flygplats</span><br>
-                    <b>Temp. Air :</b> <span style="font-size: 12px; font-weight: 700;">${temp} °C${tag}</span>
-                </div>
-            `);
-        }
-
-        function updateRoadPopup(temp, isSimulated = false) {
-            const tag = isSimulated ? ' (Simulé)' : '';
-            roadPopup.setHTML(`
-                <div style="font-size: 11px; line-height: 1.4;">
-                    <b style="color: #ea580c;">Station Trafikverket (VViS)</b><br>
-                    <span>Axe E16 Mellsta</span><br>
-                    <b>Temp. Sol :</b> <span style="font-size: 12px; font-weight: 700;">${temp} °C${tag}</span>
-                </div>
-            `);
-        }
-
-        // Marqueurs géographiques
-        const airMarker = new maplibregl.Marker({ color: '#0284c7' })
-            .setLngLat([15.5133, 60.4219])
-            .setPopup(airPopup)
-            .addTo(map);
-
-        const roadMarker = new maplibregl.Marker({ color: '#ea580c' })
-            .setLngLat([15.3850, 60.5050])
-            .setPopup(roadPopup)
-            .addTo(map);
-
-        updateAirPopup(liveAirTemp, false);
-        updateRoadPopup(liveRoadTemp, false);
-
-        // --- GESTION DU COMMUTATEUR DE MODE ---
-        function setMode(mode) {
-            currentMode = mode;
-            const btnLive = document.getElementById('btn-mode-live');
-            const btnSim = document.getElementById('btn-mode-sim');
-            const simPanel = document.getElementById('sim-panel');
-            const indicator = document.getElementById('live-indicator');
-
-            if (mode === 'LIVE') {
-                btnLive.classList.add('active');
-                btnSim.classList.remove('active');
-                simPanel.classList.remove('visible');
-                indicator.innerHTML = "● EN DIRECT";
-                indicator.style.color = "#16a34a";
-                fetchLiveTelemetry();
-            } else {
-                btnSim.classList.add('active');
-                btnLive.classList.remove('active');
-                simPanel.classList.add('visible');
-                indicator.innerHTML = "⚡ MODE SIMULATEUR ACTIF";
-                indicator.style.color = "#ea580c";
-                
-                document.getElementById('sim-road-slider').value = liveRoadTemp;
-                document.getElementById('slider-val-road').innerText = `${liveRoadTemp} °C`;
-                applySimSlider();
-            }
-        }
-
-        // --- 1. LOGIQUE TEMPS RÉEL (LIVE) ---
-        async function fetchLiveTelemetry() {
-            if (currentMode !== 'LIVE') return;
-
-            try {
-                const [resAir, resRoad, resRisk] = await Promise.all([
-                    fetch('/api/station').then(r => r.json()),
-                    fetch('/api/road-weather').then(r => r.json()),
-                    fetch('/api/simulation/predict').then(r => r.json())
-                ]);
-
-                if (resAir && resAir.temperature) {
-                    liveAirTemp = resAir.temperature.value;
-                    document.getElementById('air-temp-display').innerText = `${liveAirTemp} °C`;
-                    updateAirPopup(liveAirTemp, false);
-                }
-
-                if (resRoad && resRoad.temperature) {
-                    liveRoadTemp = resRoad.temperature.value;
-                    document.getElementById('road-temp-display').innerText = `${liveRoadTemp} °C`;
-                    updateRoadPopup(liveRoadTemp, false);
-                }
-
-                renderRiskBanner(resRisk);
-            } catch (err) {
-                console.warn("Erreur fetch live:", err);
-            }
-        }
-
-        // --- 2. LOGIQUE DU SIMULATEUR (WHAT-IF) ---
-        async function applySimSlider() {
-            if (currentMode !== 'SIM') return;
-
-            const targetRoad = parseFloat(document.getElementById('sim-road-slider').value);
-            document.getElementById('slider-val-road').innerText = `${targetRoad.toFixed(1)} °C`;
-
-            document.getElementById('road-temp-display').innerText = `${targetRoad.toFixed(1)} °C (Simulé)`;
-            updateRoadPopup(targetRoad.toFixed(1), true);
-            updateAirPopup(liveAirTemp, false);
-
-            try {
-                const res = await fetch('/api/simulation/what-if', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        simulated_road_temp: targetRoad,
-                        simulated_air_temp: liveAirTemp 
-                    })
-                });
-                const data = await res.json();
-                renderRiskBanner(data);
-            } catch(e) {
-                console.error("Erreur sim:", e);
-            }
-        }
-
-        async function loadScenario(targetRoadTemp, targetAirTemp) {
-            document.getElementById('sim-road-slider').value = targetRoadTemp;
-            document.getElementById('slider-val-road').innerText = `${targetRoadTemp.toFixed(1)} °C`;
-
-            document.getElementById('road-temp-display').innerText = `${targetRoadTemp.toFixed(1)} °C (Scénario)`;
-            document.getElementById('air-temp-display').innerText = `${targetAirTemp.toFixed(1)} °C (Scénario)`;
-
-            updateRoadPopup(targetRoadTemp.toFixed(1), true);
-            updateAirPopup(targetAirTemp.toFixed(1), true);
-
-            try {
-                const res = await fetch('/api/simulation/what-if', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        simulated_road_temp: targetRoadTemp, 
-                        simulated_air_temp: targetAirTemp 
-                    })
-                });
-                const data = await res.json();
-                renderRiskBanner(data);
-            } catch(e) {
-                console.error("Erreur scenario:", e);
-            }
-        }
-
-        function resetSim() {
-            document.getElementById('sim-road-slider').value = liveRoadTemp;
-            document.getElementById('slider-val-road').innerText = `${liveRoadTemp} °C`;
-            document.getElementById('air-temp-display').innerText = `${liveAirTemp} °C`;
-            document.getElementById('road-temp-display').innerText = `${liveRoadTemp} °C`;
-            updateAirPopup(liveAirTemp, false);
-            updateRoadPopup(liveRoadTemp, false);
-            applySimSlider();
-        }
-
-        // --- AFFICHAGE DU RISQUE ---
-        function renderRiskBanner(data) {
-            const banner = document.getElementById('risk-banner');
-            const details = document.getElementById('risk-details');
-
-            banner.style.backgroundColor = data.color || '#64748b';
-            banner.innerHTML = data.label || 'État stable';
-
-            details.innerHTML = `
-                • <b>Tendance (+1h) :</b> ${data.predicted_road_temp_1h ?? '--'} °C (Refroidissement : ${data.cooling_rate_per_hour ?? 0} °C/h)<br>
-                • <b>Action Jumeau Numérique :</b> ${data.action || 'Surveillance normale.'}
-            `;
-        }
-
-        // Rafraîchissement automatique
-        setInterval(fetchLiveTelemetry, 15000);
-        fetchLiveTelemetry();
-    </script>
+  </header>
+  <section class="source-strip" aria-label="Data source status">
+    <article class="source-card"><div class="source-head"><span class="source-icon" style="background:#38216a">▦</span>SCB / Kolada <span class="live">● LIVE</span></div><div class="source-value">Population <b>287,387 inhab.</b></div><div class="source-meta"><span>Table: stable +0.3% YoY</span><span>Annual 15</span></div></article>
+    <article class="source-card"><div class="source-head"><span class="source-icon" style="background:#64252e">⚑</span>Trafikverket <span class="live">● LIVE</span></div><div class="source-value">Road Temp <b id="sourceRoad">-- °C</b></div><div class="source-meta"><span>Stations 42 VViS sites</span><span>Every 15 min</span></div></article>
+    <article class="source-card"><div class="source-head"><span class="source-icon" style="background:#124f56">◫</span>Lantmäteriet <span class="live">● LIVE</span></div><div class="source-value">Parcels <b>148,200 units</b></div><div class="source-meta"><span>Territory 28,194 km²</span><span>Daily</span></div></article>
+    <article class="source-card"><div class="source-head"><span class="source-icon" style="background:#13533b">♧</span>Skogsstyrelsen <span class="live">● LIVE</span></div><div class="source-value">Inventory <b>2,420 stands</b></div><div class="source-meta"><span>Canopy index 72%</span><span>Daily</span></div></article>
+    <article class="source-card"><div class="source-head"><span class="source-icon" style="background:#133e77">♢</span>SGU <span class="live">● LIVE</span></div><div class="source-value">Aquifers <b>88 bodies</b></div><div class="source-meta"><span>Water level normal</span><span>Every 6 hours</span></div></article>
+    <article class="source-card"><div class="source-head"><span class="source-icon" style="background:#634317">☼</span>SMHI <span class="live">● LIVE</span></div><div class="source-value">Air Temp <b id="sourceAir">-- °C</b></div><div class="source-meta"><span>Wind speed 2.0 m/s</span><span>Every 15 min</span></div></article>
+  </section>
+  <main class="workspace">
+    <section class="map-area">
+      <div id="map"></div>
+      <div class="map-title"><strong>▧ &nbsp; REGION DALARNA — REGIONAL MAP</strong><small>15 municipalities · Regional overview · Live and scenario layers</small></div>
+      <div class="map-tools"><button class="active" id="satBtn" onclick="setMapStyle('satellite')">🌐 Satellite</button><button id="darkBtn" onclick="setMapStyle('dark')">● Dark</button><button id="streetBtn" onclick="setMapStyle('street')">▧ Street</button></div>
+      <div class="zoom-tools"><button onclick="map.zoomIn()">+</button><button onclick="map.zoomOut()">−</button><button onclick="fitRegion()">FIT</button></div>
+      <div class="legend"><span class="legend-label">VULNERABILITY SCALE:</span><span><i class="dot" style="background:#18c985"></i>Low</span><span><i class="dot" style="background:#ffbd42"></i>Medium</span><span><i class="dot" style="background:#ff5265"></i>High</span><span><i class="dot" style="background:#9a5bff"></i>Critical</span></div>
+      <div class="map-note">Map layers are illustrative until connected to verified regional GIS data.</div>
+    </section>
+    <aside class="side-panel">
+      <nav class="side-tabs"><button id="tabSources" onclick="showTab('sources')">▤ &nbsp;Data Sources</button><button id="tabSimulation" class="active" onclick="showTab('simulation')">☷ &nbsp;Simulation</button><button id="tabMunicipalities" onclick="showTab('municipalities')">▤ &nbsp;Municipalities</button></nav>
+      <div class="panel-scroll">
+        <section id="simulationView">
+          <div class="intro"><button class="reset" onclick="resetAll()">↻ Reset all</button><h2>Combined Multi-Source Simulation</h2><p>Adjust one or more drivers to explore potential cumulative impacts across Region Dalarna.</p></div>
+          <div class="control-card">
+            <div class="control-top"><span class="control-icon" style="background:#35205c">▦</span><div><div class="control-title">Population (SCB / Kolada)</div><div class="control-sub">Baseline: 287,387 inhabitants · illustrative scenario</div></div></div>
+            <div class="control-row"><span class="control-label">Population change</span><input id="population" type="range" min="-20" max="30" step="1" value="10" oninput="updateValue('population')"><span class="value-badge" id="populationValue">+10%</span><div class="nudge"><button onclick="nudge('population',-1)">−</button><button onclick="nudge('population',1)">+</button></div></div>
+          </div>
+          <div class="control-card">
+            <div class="control-top"><span class="control-icon" style="background:#57252e">🚗</span><div><div class="control-title">Road (Trafikverket)</div><div class="control-sub">Road surface temperature change</div></div></div>
+            <div class="control-row"><span class="control-label">Temperature change</span><input id="road" type="range" min="-15" max="15" step=".5" value="2" oninput="updateValue('road')"><span class="value-badge" id="roadValue">+2.0°C</span><div class="nudge"><button onclick="nudge('road',-.5)">−</button><button onclick="nudge('road',.5)">+</button></div></div>
+          </div>
+          <div class="control-card">
+            <div class="control-top"><span class="control-icon" style="background:#153c6d">◫</span><div><div class="control-title">Land (Lantmäteriet)</div><div class="control-sub">New development / land-use change</div></div></div>
+            <div class="control-row"><span class="control-label">Land-use change</span><input id="land" type="range" min="-30" max="40" step="1" value="15" oninput="updateValue('land')"><span class="value-badge" id="landValue">+15%</span><div class="nudge"><button onclick="nudge('land',-1)">−</button><button onclick="nudge('land',1)">+</button></div></div>
+          </div>
+          <div class="control-card">
+            <div class="control-top"><span class="control-icon" style="background:#13533b">♧</span><div><div class="control-title">Forest (Skogsstyrelsen)</div><div class="control-sub">Forest harvest / change intensity</div></div></div>
+            <div class="control-row"><span class="control-label">Forest change</span><input id="forest" type="range" min="-30" max="50" step="1" value="20" oninput="updateValue('forest')"><span class="value-badge" id="forestValue">+20%</span><div class="nudge"><button onclick="nudge('forest',-1)">−</button><button onclick="nudge('forest',1)">+</button></div></div>
+          </div>
+          <div class="control-card">
+            <div class="control-top"><span class="control-icon" style="background:#124f62">♢</span><div><div class="control-title">Water (SGU)</div><div class="control-sub">Groundwater / water-stress change</div></div></div>
+            <div class="control-row"><span class="control-label">Water stress</span><input id="water" type="range" min="-40" max="60" step="1" value="-15" oninput="updateValue('water')"><span class="value-badge" id="waterValue">−15%</span><div class="nudge"><button onclick="nudge('water',-1)">−</button><button onclick="nudge('water',1)">+</button></div></div>
+          </div>
+          <div class="control-card">
+            <div class="control-top"><span class="control-icon" style="background:#634317">☼</span><div><div class="control-title">Weather (SMHI)</div><div class="control-sub">Temperature change; precipitation assumptions separate</div></div></div>
+            <div class="control-row"><span class="control-label">Air temperature</span><input id="weather" type="range" min="-10" max="10" step=".5" value="2" oninput="updateValue('weather')"><span class="value-badge" id="weatherValue">+2.0°C</span><div class="nudge"><button onclick="nudge('weather',-.5)">−</button><button onclick="nudge('weather',.5)">+</button></div></div>
+          </div>
+          <div class="mode-card">
+            <h3>⚙ &nbsp;Simulation settings</h3>
+            <div class="mode-options">
+              <label class="mode-option"><input type="radio" name="analysisMode" value="combined" checked><span><b>Combined impact</b>Evaluate all enabled drivers together.</span></label>
+              <label class="mode-option"><input type="radio" name="analysisMode" value="individual"><span><b>Individual source</b>Compare drivers one at a time.</span></label>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px">
+              <label class="control-label">Target year<select id="targetYear" style="display:block;margin-top:5px;width:100%;padding:8px;background:#111e30;color:#eaf2ff;border:1px solid #2a3a52;border-radius:6px"><option>2030</option><option>2035</option><option selected>2040</option><option>2050</option></select></label>
+              <label class="control-label">Geographic scope<select id="scope" style="display:block;margin-top:5px;width:100%;padding:8px;background:#111e30;color:#eaf2ff;border:1px solid #2a3a52;border-radius:6px"><option value="dalarna">All Dalarna</option><option>Borlänge</option><option>Falun</option><option>Ludvika</option><option>Mora</option><option>Avesta</option></select></label>
+            </div>
+            <button class="run-btn" id="runButton" onclick="runSimulation()">▷ &nbsp; Run Combined Simulation <small>Analyze potential impacts across the six data sources</small></button>
+            <div id="runStatus" class="status-line" role="status" style="margin-top:8px"></div>
+          </div>
+          <section class="results" id="results">
+            <h3>Simulation results <span id="resultTag" style="float:right;color:#8d9fba;font-size:9px;font-weight:500"></span></h3>
+            <div class="result-grid"><div class="result-metric"><span>Illustrative regional risk</span><strong id="riskScore">—</strong></div><div class="result-metric"><span>Risk category</span><strong id="riskLevel">—</strong></div><div class="result-metric"><span>Drivers changed</span><strong id="driverCount">6</strong></div><div class="result-metric"><span>Target year</span><strong id="resultYear">2040</strong></div></div>
+            <div class="result-message" id="resultMessage"></div>
+            <div class="assumption">Interpretation: this is a transparent prototype indicator, not an official forecast or validated vulnerability model. Replace the demo calculation with the validated backend model before using results for decisions.</div>
+          </section>
+        </section>
+        <section id="sourcesView" hidden>
+          <div class="intro"><h2>Data source registry</h2><p>Connector status is a UI placeholder unless your backend confirms the connection.</p></div>
+          <div class="source-list">
+            <div class="source-detail"><b>SCB / Kolada</b><span>Population &amp; statistics</span></div><div class="source-detail"><b>Trafikverket</b><span>Roads &amp; traffic</span></div><div class="source-detail"><b>Lantmäteriet</b><span>Land &amp; geospatial</span></div><div class="source-detail"><b>Skogsstyrelsen</b><span>Forest &amp; environment</span></div><div class="source-detail"><b>SGU</b><span>Groundwater &amp; geology</span></div><div class="source-detail"><b>SMHI</b><span>Weather &amp; climate</span></div>
+          </div>
+        </section>
+        <section id="municipalitiesView" hidden>
+          <div class="intro"><h2>Dalarna municipalities</h2><p>Select a municipality to focus the map. Connect verified boundary geometry for exact outlines.</p></div>
+          <div class="municipality-list" id="municipalityList"></div>
+        </section>
+      </div>
+    </aside>
+  </main>
+</div>
+<script>
+const municipalityNames=["Älvdalen","Avesta","Borlänge","Falun","Gagnef","Hedemora","Leksand","Ludvika","Malung-Sälen","Mora","Orsa","Rättvik","Säter","Smedjebacken","Vansbro"];
+let currentMode="live",liveAirTemp=null,liveRoadTemp=null,lastSimulation=null;
+const styles={street:"https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",dark:"https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",satellite:"https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"};
+const map=new maplibregl.Map({container:"map",style:styles.satellite,center:[15.2,60.75],zoom:6.7,attributionControl:true});
+map.addControl(new maplibregl.NavigationControl({showCompass:false}),"bottom-right");
+map.on("load",()=>{addMunicipalityMarkers();});
+function addMunicipalityMarkers(){
+ const coords=[[14.1,61.23],[16.2,60.15],[15.44,60.48],[15.63,60.61],[15.08,60.6],[15.99,60.28],[15.0,60.73],[15.18,60.15],[13.7,60.68],[14.55,61.0],[14.62,61.12],[15.12,60.88],[15.75,60.35],[15.42,60.14],[14.22,60.45]];
+ coords.forEach((c,i)=>{const el=document.createElement("button");el.textContent=municipalityNames[i];el.style.cssText="background:#0b1220eF;color:#f1f5ff;border:1px solid #a7b4c8;border-radius:5px;padding:4px 6px;font-size:10px;font-weight:650;white-space:nowrap;box-shadow:0 2px 8px #0008";el.onclick=()=>focusMunicipality(municipalityNames[i],c);new maplibregl.Marker({element:el}).setLngLat(c).addTo(map);});
+}
+function setMapStyle(s){map.setStyle(styles[s]);document.querySelectorAll(".map-tools button").forEach(b=>b.classList.remove("active"));document.getElementById(({satellite:"satBtn",dark:"darkBtn",street:"streetBtn"})[s]).classList.add("active");map.once("style.load",addMunicipalityMarkers);}
+function fitRegion(){map.flyTo({center:[15.2,60.75],zoom:6.7,duration:800})}
+function focusMunicipality(name,coords){document.getElementById("scope").value=name;map.flyTo({center:coords,zoom:8.5,duration:700});setStatus("Map focused on "+name+".","ok")}
+function setTopMode(mode){currentMode=mode;document.getElementById("liveTab").classList.toggle("active",mode==="live");document.getElementById("simTab").classList.toggle("active",mode==="simulation");if(mode==="simulation")showTab("simulation");else refreshData();}
+function showTab(tab){["sources","simulation","municipalities"].forEach(t=>{document.getElementById(t+"View").hidden=t!==tab;document.getElementById("tab"+t[0].toUpperCase()+t.slice(1)).classList.toggle("active",t===tab);});}
+function updateValue(id){const el=document.getElementById(id),v=Number(el.value),unit=(id==="road"||id==="weather")?"°C":"%";document.getElementById(id+"Value").textContent=(v>0?"+":"")+((unit==="°C")?v.toFixed(1):v)+unit;}
+function nudge(id,delta){const el=document.getElementById(id);el.value=Math.max(Number(el.min),Math.min(Number(el.max),Number(el.value)+delta));updateValue(id)}
+function resetAll(){const vals={population:10,road:2,land:15,forest:20,water:-15,weather:2};Object.entries(vals).forEach(([id,v])=>{document.getElementById(id).value=v;updateValue(id)});document.getElementById("targetYear").value="2040";document.getElementById("scope").value="dalarna";document.querySelector('input[name="analysisMode"][value="combined"]').checked=true;document.getElementById("results").classList.remove("show");setStatus("Controls reset to the default example scenario.","")}
+function setStatus(msg,kind=""){const el=document.getElementById("runStatus");el.textContent=msg;el.className="status-line "+kind}
+function currentInputs(){return {population_change:Number(document.getElementById("population").value)/100,road_temperature_change:Number(document.getElementById("road").value),land_use_change:Number(document.getElementById("land").value)/100,forest_change:Number(document.getElementById("forest").value)/100,water_stress_change:Number(document.getElementById("water").value)/100,air_temperature_change:Number(document.getElementById("weather").value),target_year:Number(document.getElementById("targetYear").value),scope:document.getElementById("scope").value,mode:document.querySelector('input[name="analysisMode"]:checked').value};}
+async function runSimulation(){
+ const btn=document.getElementById("runButton");btn.disabled=true;btn.innerHTML="◌ &nbsp; Running simulation… <small>Evaluating selected scenario</small>";setStatus("Submitting scenario to the simulation API…");
+ const x=currentInputs();const payload={scenario:"multi_source_combined",target_year:x.target_year,scope:x.scope,mode:x.mode,driver:{population_change:x.population_change,road_temperature_change:x.road_temperature_change,land_use_change:x.land_use_change,forest_change:x.forest_change,water_stress_change:x.water_stress_change,air_temperature_change:x.air_temperature_change},sources:{scb:true,trafikverket:true,lantmateriet:true,skogsstyrelsen:true,sgu:true,smhi:true}};
+ let apiResult=null,apiWorked=false;
+ try{const res=await fetch("/api/simulation/run",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});if(res.ok){apiResult=await res.json();apiWorked=true;}else{setStatus("Simulation API returned HTTP "+res.status+". Showing an illustrative local preview instead.","error")}}catch(e){setStatus("Simulation API unavailable from this page. Showing an illustrative local preview instead.","error")}
+ const demo=calculateDemo(x);renderResults(apiWorked?apiResult:demo,x,apiWorked);btn.disabled=false;btn.innerHTML="▷ &nbsp; Run Combined Simulation <small>Analyze potential impacts across the six data sources</small>";
+}
+function calculateDemo(x){
+ // Demonstration-only index. It is not a validated scientific risk formula.
+ const score=Math.max(0,Math.min(100,30+Math.abs(x.population_change)*70+Math.abs(x.road_temperature_change)*1.25+Math.abs(x.land_use_change)*25+Math.abs(x.forest_change)*20+Math.abs(x.water_stress_change)*22+Math.abs(x.air_temperature_change)*1.3));
+ const level=score<30?"Low":score<50?"Medium":score<70?"High":"Critical";
+ return {regional_score:Math.round(score),risk_level:level,impact_by_source:{SCB:{change_percent:x.population_change*100},Trafikverket:{temperature_change:x.road_temperature_change},Lantmäteriet:{change_percent:x.land_use_change*100},Skogsstyrelsen:{change_percent:x.forest_change*100},SGU:{change_percent:x.water_stress_change*100},SMHI:{temperature_change:x.air_temperature_change}},message:"Local demonstration result only; no validated cross-source model was available."};
+}
+function renderResults(data,x,apiWorked){
+ const score=Number(data.regional_score??data.risk_score??data.vulnerability_score??data.score??NaN);
+ const level=data.risk_level??data.risk_category??data.label??(Number.isFinite(score)?(score<30?"Low":score<50?"Medium":score<70?"High":"Critical"):"Result received");
+ document.getElementById("riskScore").textContent=Number.isFinite(score)?Math.round(score)+"%":"—";
+ document.getElementById("riskLevel").textContent=String(level);
+ document.getElementById("riskLevel").style.color=String(level).toLowerCase().includes("critical")||String(level).toLowerCase().includes("high")?"#ff7180":String(level).toLowerCase().includes("medium")?"#ffcb5d":"#43dda3";
+ document.getElementById("driverCount").textContent="6";document.getElementById("resultYear").textContent=x.target_year;
+ document.getElementById("resultTag").textContent=apiWorked?"Backend result":"Demo preview";
+ const serverMessage=data.message??data.recommendation??data.action??"Scenario processed. Review source-level impacts and assumptions before making decisions.";
+ document.getElementById("resultMessage").textContent=String(serverMessage)+(x.mode==="individual"?" Individual-source mode selected.":" Combined-source mode selected.");
+ document.getElementById("results").classList.add("show");
+ setStatus(apiWorked?"Simulation result received from backend.":"Demo calculated locally; connect /api/simulation/run for validated results.",apiWorked?"ok":"error");
+ lastSimulation=data;
+}
+async function refreshData(){
+ const jobs=[["/api/station","air"],["/api/road-weather","road"]];
+ let count=0;
+ for(const [url,type] of jobs){try{const r=await fetch(url);if(!r.ok)continue;const d=await r.json();const t=d?.temperature?.value??d?.temperature;if(Number.isFinite(Number(t))){if(type==="air"){liveAirTemp=Number(t);["topAir","sourceAir"].forEach(id=>document.getElementById(id).textContent=liveAirTemp.toFixed(1)+" °C")}else{liveRoadTemp=Number(t);["topRoad","sourceRoad"].forEach(id=>document.getElementById(id).textContent=liveRoadTemp.toFixed(1)+" °C")}count++}}catch(e){}}
+ if(count===0){document.getElementById("systemStatus").textContent="● UI READY";document.getElementById("systemStatus").style.color="#ffbd42"}else{document.getElementById("systemStatus").textContent="● OPERATIONAL";document.getElementById("systemStatus").style.color="#29d68c"}
+}
+document.getElementById("municipalityList").innerHTML=municipalityNames.map(n=>`<button class="muni" onclick="selectMunicipality('${n.replace(/'/g,"\\'")}')">${n} <span style="float:right;color:#8192ab">↗</span></button>`).join("");
+function selectMunicipality(name){const btns=[...document.querySelectorAll(".muni")];const coordsMap={"Borlänge":[15.44,60.48],"Falun":[15.63,60.61],"Ludvika":[15.18,60.15],"Mora":[14.55,61.0],"Avesta":[16.2,60.15],"Älvdalen":[14.1,61.23],"Gagnef":[15.08,60.6],"Hedemora":[15.99,60.28],"Leksand":[15.0,60.73],"Malung-Sälen":[13.7,60.68],"Orsa":[14.62,61.12],"Rättvik":[15.12,60.88],"Säter":[15.75,60.35],"Smedjebacken":[15.42,60.14],"Vansbro":[14.22,60.45]};focusMunicipality(name,coordsMap[name]||[15.2,60.75]);}
+refreshData();setInterval(refreshData,15000);
+</script>
 </body>
 </html>

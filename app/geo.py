@@ -9,8 +9,13 @@ GEOJSON_PATH = Path(__file__).resolve().parent.parent / "static" / "data" / "dal
 
 
 @lru_cache(maxsize=1)
+def geojson_data() -> dict:
+    return json.loads(GEOJSON_PATH.read_text(encoding="utf-8"))
+
+
+@lru_cache(maxsize=1)
 def municipalities() -> list[dict]:
-    data = json.loads(GEOJSON_PATH.read_text(encoding="utf-8"))
+    data = geojson_data()
     return [
         {
             "code": f["properties"]["code"],

@@ -3,55 +3,130 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Control Room — Dalarna Digital Twin</title>
+  <title>Dashboard Control — Dalarna Digital Twin</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="/css/app.css">
-  <link rel="stylesheet" href="/css/ui.css">
-  <link rel="stylesheet" href="/css/control-room.css">
+  <link rel="stylesheet" href="/css/admin.css?v=2026101805">
 </head>
-<body class="cr">
-  <header class="cr-top">
-    <div class="cr-brand"><i class="fa-solid fa-sliders"></i> <b>Control Room</b> <span class="muted">Dalarna Digital Twin</span></div>
-    <div class="cr-top-right">
-      <span class="cr-chip" id="cr-saved" title="Version currently live on the Main Dashboard">Loading…</span>
-      <button class="cr-chip dirty hidden" id="cr-dirty" data-act="show-diff" title="Unsaved changes (only visible in Preview)"></button>
-      <a class="btn small" href="/" target="_blank" rel="noopener"><i class="fa-regular fa-eye"></i> Open Main Dashboard</a>
-      <button class="btn small" data-act="logout" id="cr-user" title="Sign out"><i class="fa-regular fa-user"></i> <span>Admin</span></button>
+<body class="grafana-theme">
+  <!-- Top Global Bar -->
+  <header class="grafana-topbar">
+    <div class="topbar-left">
+      <!-- Grafana Orange Swirl Icon -->
+      <div class="grafana-logo-wrap">
+        <svg viewBox="0 0 40 40" class="grafana-logo-svg">
+          <circle cx="20" cy="20" r="18" fill="#f97316"/>
+          <path d="M12 20 A8 8 0 0 1 28 20 A4 4 0 0 1 20 20" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round"/>
+          <circle cx="20" cy="20" r="2.5" fill="#ffffff"/>
+        </svg>
+        <span class="grafana-brand-name">Grafana</span>
+      </div>
+      <div class="topbar-divider"></div>
+      <span class="topbar-app-title">Dalarna Digital Twin</span>
+      <span class="badge-status online ml-2"><span class="dot-online"></span> Dashboard configured</span>
+    </div>
+
+    <div class="topbar-right">
+      <a href="/" target="_blank" rel="noopener" class="topbar-link">
+        <i class="fa-regular fa-eye"></i> View Live Dashboard <i class="fa-solid fa-arrow-up-right-from-square small"></i>
+      </a>
+      <div class="admin-user-pill" id="admin-user-btn" style="cursor:pointer;" title="Click to Sign Out">
+        <div class="admin-avatar">A</div>
+        <span>Admin <i class="fa-solid fa-right-from-bracket small" style="margin-left:6px;" title="Sign out"></i></span>
+      </div>
     </div>
   </header>
 
-  <section class="cr-actions" aria-label="Global actions">
-    <div class="seg-mode" role="group" aria-label="Dashboard mode (pending)">
-      <button class="seg-btn" data-act="set-mode" data-mode="live" id="cr-live">Live</button>
-      <button class="seg-btn" data-act="set-mode" data-mode="simulation" id="cr-sim">Simulation</button>
-    </div>
-    <div class="cr-actions-right">
-      <button class="btn" data-act="refresh-preview" id="cr-refresh-preview"><i class="fa-solid fa-rotate"></i> Refresh Preview</button>
-      <button class="btn" data-act="reset" id="cr-reset"><i class="fa-solid fa-rotate-left"></i> Reset</button>
-      <button class="btn" data-act="cancel" id="cr-cancel">Cancel</button>
-      <button class="btn primary" data-act="apply" id="cr-apply"><i class="fa-solid fa-floppy-disk"></i> Save &amp; Apply</button>
-    </div>
-  </section>
-
-  <nav class="cr-tabs" id="cr-tabs" role="tablist" aria-label="Control Room sections"></nav>
-
-  <main class="cr-main">
-    <section class="cr-left" id="cr-content" tabindex="-1" aria-live="polite"></section>
-    <aside class="cr-right">
-      <div class="panel cr-preview">
-        <div class="cr-preview-head">
-          <div><h2><span class="dot-live"></span> Preview</h2><div class="muted small">The real Main Dashboard in compact form. Shows your <b>unsaved</b> changes; nothing is live until Save &amp; Apply.</div></div>
-        </div>
-        <iframe id="preview-frame" src="/?preview=1" title="Main Dashboard preview"></iframe>
+  <!-- Main Container with Sidebar + Main Content -->
+  <div class="admin-app-layout">
+    <!-- Left Navigation Sidebar -->
+    <nav class="admin-sidebar" aria-label="Admin Navigation">
+      <div class="admin-nav-group">
+        <a href="/admin/overview" class="admin-nav-item active" data-module="overview">
+          <i class="fa-solid fa-house"></i>
+          <span>Overview</span>
+        </a>
+        <a href="/admin/control" class="admin-nav-item" data-module="control">
+          <i class="fa-solid fa-table-columns"></i>
+          <span>Dashboard Control</span>
+        </a>
+        <a href="/admin/datasources" class="admin-nav-item" data-module="datasources">
+          <i class="fa-solid fa-database"></i>
+          <span>Data Sources</span>
+        </a>
+        <a href="/admin/scenarios" class="admin-nav-item" data-module="scenarios">
+          <i class="fa-solid fa-code-branch"></i>
+          <span>Scenarios</span>
+        </a>
+        <a href="/admin/risks" class="admin-nav-item" data-module="risks">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Risk Settings</span>
+        </a>
+        <a href="/admin/layers" class="admin-nav-item" data-module="layers">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>Map Layers</span>
+        </a>
+        <a href="/admin/appearance" class="admin-nav-item" data-module="appearance">
+          <i class="fa-solid fa-palette"></i>
+          <span>Appearance</span>
+        </a>
+        <a href="/admin/system" class="admin-nav-item" data-module="system">
+          <i class="fa-solid fa-gear"></i>
+          <span>System & Audit</span>
+        </a>
       </div>
-    </aside>
-  </main>
 
-  <div id="toasts" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/control-room.js"></script>
+      <div class="admin-sidebar-bottom">
+        <a href="/" class="admin-nav-item back-link">
+          <i class="fa-solid fa-arrow-left"></i>
+          <span>Back to Main Twin</span>
+        </a>
+      </div>
+    </nav>
+
+    <!-- Main Content Area -->
+    <main class="admin-main-viewport">
+      <!-- Title Header -->
+      <div class="admin-page-header">
+        <h1>Dashboard Control</h1>
+        <p class="admin-page-sub">Easily manage data sources, scenarios, map layers and visual elements for the Dalarna Digital Twin.</p>
+      </div>
+
+
+
+      <!-- Tab Content Area -->
+      <div class="admin-tab-content" id="admin-tab-content">
+        <!-- Rendered dynamically by static/js/admin.js -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Bottom Sticky Save Bar -->
+  <footer class="admin-save-bar" id="admin-save-bar">
+    <div class="save-bar-left">
+      <div class="save-icon-circle">
+        <i class="fa-solid fa-check"></i>
+      </div>
+      <div class="save-bar-text">
+        <b>Save Changes</b>
+        <span>Your changes will be applied to the main dashboard.</span>
+      </div>
+    </div>
+    <div class="save-bar-right">
+      <button class="btn-save-apply" id="btn-save-apply">
+        <i class="fa-solid fa-floppy-disk"></i> Save & Apply
+      </button>
+      <button class="btn-reset-default" id="btn-reset-default">
+        <i class="fa-solid fa-rotate-right"></i> Reset to Default
+      </button>
+    </div>
+  </footer>
+
+  <div id="toasts"></div>
+  <script type="module" src="/js/admin.js?v=2026101805"></script>
 </body>
 </html>

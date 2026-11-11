@@ -25,7 +25,6 @@ def test_population_formula_depends_on_target_year(admin):
     assert pops[0] < pops[1] < pops[2]
 
 
-@pytest.mark.xfail(strict=True, reason="R-2.7/A-9.4: engine uses config/simulation_model.json thresholds, not the saved risk thresholds")
 def test_simulation_uses_saved_risk_thresholds(admin):
     st = admin.get("/api/control/state").json()
     body = {k: st[k] for k in STATE_KEYS}
@@ -52,7 +51,6 @@ def test_audit_log_requires_admin(client):
     assert client.get("/api/system/audit").status_code in (401, 403)
 
 
-@pytest.mark.xfail(strict=True, reason="A-7.7: results must be stored (simulation_runs) and retrievable after a restart")
 def test_simulation_results_are_persisted(admin):
     run_id = run(admin)["run_id"]
     with db.cursor() as cur:
@@ -60,7 +58,6 @@ def test_simulation_results_are_persisted(admin):
         assert cur.fetchone()["n"] >= 1, f"{run_id} only lives in process memory"
 
 
-@pytest.mark.xfail(strict=True, reason="A-7.2: scenario CRUD (POST/PUT /api/simulation/scenarios) is missing")
 def test_scenario_can_be_created(admin):
     body = {"id": "gap_test", "name": "Gap test", "driver_source": "SCB", "target_year": 2030, "scope": "dalarna", "driver": {"population_change": 0.05}}
     assert admin.post("/api/simulation/scenarios", json=body).status_code in (200, 201)

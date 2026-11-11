@@ -151,10 +151,14 @@ function cardState(s) {
 
 function renderKpiCards() {
   if (!comp("source_cards")) return "";
-  const cards = srcList().map((s) => {
+  const cards = srcList().filter((s) => {
+    const isExplicitlyOff = ctl()?.sources?.[s.id] === false;
+    const isSavedOff = S.control?.sources?.[s.id] === false;
+    return !isExplicitlyOff && !isSavedOff && s.enabled !== false && s.status !== "disabled";
+  }).map((s) => {
     const v = H.sourceVisual(s);
     const st = cardState(s);
-    const h = st.off ? { value: "Unavailable", sub: "Source is switched off. Stored data is kept." } : headlineOf(s);
+    const h = headlineOf(s);
     return `
       <div class="kpi-card ${st.cls}" role="button" tabindex="0" data-act="open-source" data-id="${esc(s.id)}" title="Open ${esc(s.name)} details">
         <div class="kpi-top">
@@ -167,7 +171,7 @@ function renderKpiCards() {
         <div class="kpi-foot">Last update: ${esc(s.last_success_at ? relTime(s.last_success_at) : "never")}</div>
       </div>`;
   });
-  if (!cards.length) return `<section class="kpi-row"><div class="panel empty-state">${S.errors.summary ? "Unable to retrieve this source. Showing last available data." : "Loading sources…"}</div></section>`;
+  if (!cards.length) return `<section class="kpi-row"><div class="panel empty-state">${S.errors.summary ? "Unable to retrieve this source. Showing last available data." : "No active data sources enabled."}</div></section>`;
   return `<section class="kpi-row" aria-label="Data sources">${cards.join("")}</section>`;
 }
 
@@ -383,7 +387,10 @@ function renderControl() {
         <select class="sim-select" id="sim-scope" ${S.running ? "disabled" : ""}><option value="dalarna" ${f.scope === "dalarna" ? "selected" : ""}>All Dalarna (${S.munis?.municipalities?.length || 15} municipalities)</option>
           ${(S.munis?.municipalities || []).map((m) => `<option value="${esc(m.code)}" ${f.scope === m.code ? "selected" : ""}>${esc(m.name)}</option>`).join("")}</select></div>
       <div class="toggles-header">Source dependencies</div>
-      <div class="sim-toggles-list">${srcList().map((s) => {
+      <div class="sim-toggles-list">${srcList().filter((s) => {
+        const isOff = ctl()?.sources?.[s.id] === false || S.control?.sources?.[s.id] === false || s.enabled === false || s.status === "disabled";
+        return !isOff;
+      }).map((s) => {
         const v = H.sourceVisual(s);
         return `<label class="sim-toggle-row"><span class="toggle-name"><i class="fa-solid ${v.icon} ${v.color}"></i> ${esc(s.name)} – ${esc(s.category)}${isExternal(s) ? ` <em class="muted">(external context only)</em>` : ""}</span>
           <input type="checkbox" class="toggle-switch-input" data-act="dep" data-id="${esc(s.id)}" ${f.excluded.includes(s.id) ? "" : "checked"} ${S.running ? "disabled" : ""}><span class="toggle-switch-slider"></span></label>`;
